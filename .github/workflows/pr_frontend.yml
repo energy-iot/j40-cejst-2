@@ -5,7 +5,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 env:
-  node-version: 14.x
+  node-version: 18.x
 jobs:
   # JOB to run change detection
   detect-fe-changes:

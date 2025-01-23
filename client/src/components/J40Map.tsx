@@ -12,7 +12,8 @@ import ReactMapGL, {
   Popup,
   FlyToInterpolator,
   FullscreenControl,
-  MapRef} from 'react-map-gl';
+  MapRef,
+} from 'react-map-gl';
 import {useIntl} from 'gatsby-plugin-intl';
 import bbox from '@turf/bbox';
 import * as d3 from 'd3-ease';
@@ -36,6 +37,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import * as constants from '../data/constants';
 import * as styles from './J40Map.module.scss';
 import * as EXPLORE_COPY from '../data/copy/explore';
+import CreateReportPanel from './CreateReportPanel';
 
 declare global {
   interface Window {
@@ -63,6 +65,8 @@ export interface IMapFeature {
   type: string;
 }
 
+const MAX_SELECTED_TRACTS = 20;
+
 const J40Map = ({location}: IJ40Interface) => {
   /**
    * Initializes the zoom, and the map's center point (lat, lng) via the URL hash #{z}/{lat}/{long}
@@ -86,11 +90,13 @@ const J40Map = ({location}: IJ40Interface) => {
     zoom: zoom && parseFloat(zoom) ? parseFloat(zoom) : constants.GLOBAL_MIN_ZOOM,
   });
 
-  const [selectedFeature, setSelectedFeature] = useState<MapGeoJSONFeature>();
+  const [selectedFeatures, setSelectedFeatures] = useState<MapGeoJSONFeature[]>([]);
   const [detailViewData, setDetailViewData] = useState<IDetailViewInterface>();
   const [transitionInProgress, setTransitionInProgress] = useState<boolean>(false);
   const [geolocationInProgress, setGeolocationInProgress] = useState<boolean>(false);
   const [isMobileMapState, setIsMobileMapState] = useState<boolean>(false);
+  const [inMultiSelectMode, setInMultiSelectMode] = useState<boolean>(false);
+  const [showTooManyTractsAlert, setShowTooManyTractsAlert] = useState<boolean>(false);
   const [selectTractId, setSelectTractId] = useState<string | undefined>(undefined);
   const {width: windowWidth} = useWindowSize();
 
@@ -110,23 +116,84 @@ const J40Map = ({location}: IJ40Interface) => {
   const flags = useFlags();
   const intl = useIntl();
 
-  const selectedFeatureId = (selectedFeature && selectedFeature.id) || '';
-
   const zoomLatLngHash = mapRef.current?.getMap()._hash._getCurrentHash();
+
+  /**
+   * Get the bounding box for one or more features.
+   * @param featureList the list of features
+   * @returns the bounding box
+   */
+  const getFeaturesBbox = (featureList: MapGeoJSONFeature[]): number[] => {
+    if (featureList.length === 0) {
+      throw new Error('featureList must be a non-empty array to get a bounding box.');
+    }
+
+    // Calculate a max and min lat/lon from all the selected features.
+    const minLngList: number[] = [];
+    const minLatList: number[] = [];
+    const maxLngList: number[] = [];
+    const maxLatList: number[] = [];
+    featureList.forEach((feature) => {
+      const [featMinLng, featMinLat, featMaxLng, featMaxLat] = bbox(feature);
+      minLngList.push(featMinLng);
+      minLatList.push(featMinLat);
+      maxLngList.push(featMaxLng);
+      maxLatList.push(featMaxLat);
+    });
+    const minLng: number = Math.min(...minLngList);
+    const minLat: number = Math.max(...minLatList);
+    const maxLng: number = Math.max(...maxLngList);
+    const maxLat: number = Math.min(...maxLatList);
+    return [minLng, minLat, maxLng, maxLat];
+  };
+
+  /**
+   * Updates the state with the list of selected features. This function will:
+   *   - Add the feature to the list if in multi select and the feature does not already exist
+   *   - Remove the feature from the list if in multi select and the feature does already exist
+   * @param feature the feature to add or remove
+   * @param isMultiSelect true if in multiselect mode
+   * @returns the list of zero or more features
+   */
+  const updateSelectedFeatures = (feature: MapGeoJSONFeature, isMultiSelect: boolean): MapGeoJSONFeature[] => {
+    if (!feature) return selectedFeatures;
+
+    // If the feature is in the list then remove it as it is being deselected
+    const exists = selectedFeatures.some((item) => item.id === feature.id);
+    let featureList: MapGeoJSONFeature[] = selectedFeatures;
+    if (exists) {
+      featureList = selectedFeatures.filter((item) => item.id !== feature.id);
+      setShowTooManyTractsAlert(false);
+    } else if (selectedFeatures.length < MAX_SELECTED_TRACTS) {
+      // Add the feature to the list if in multi select, otherwise replace the list
+      // with just this one feature.
+      featureList = isMultiSelect ?
+        [...selectedFeatures, feature] :
+        [feature];
+    } else {
+      setShowTooManyTractsAlert(true);
+    }
+    setSelectedFeatures(featureList);
+
+    if (!inMultiSelectMode) {
+      // Turn on multi select mode any time we select more than one tract.
+      setInMultiSelectMode(featureList.length > 1);
+    }
+
+    return featureList;
+  };
 
   /**
    * Selects the provided feature on the map.
    * @param feature the feature to select
+   * @param isMultiSelectKeyDown true if the multi select key is down
    */
-  const selectFeatureOnMap = (feature: IMapFeature) => {
-    if (feature) {
-      // Get the current selected feature's bounding box:
-      const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+  const selectFeaturesOnMap = (feature: IMapFeature, isMultiSelectKeyDown: boolean = false) => {
+    const featuresList = updateSelectedFeatures(feature, isMultiSelectKeyDown || inMultiSelectMode);
+    if (featuresList.length > 0) {
+      const [minLng, minLat, maxLng, maxLat] = getFeaturesBbox(featuresList);
 
-      // Set the selectedFeature ID
-      setSelectedFeature(feature);
-
-      // Go to the newly selected feature (as long as it's not an Alaska Point)
+      // Go to area of the selected feature(s)
       goToPlace([
         [minLng, minLat],
         [maxLng, maxLat],
@@ -213,14 +280,15 @@ const J40Map = ({location}: IJ40Interface) => {
         default:
           break;
       }
-    } else if (event.target && (event.target as HTMLElement).nodeName == 'DIV' ) {
+    } else if (event.target && (event.target as HTMLElement).nodeName == 'DIV') {
       // This else clause will fire when the user clicks on the map and will ignore other controls
       // such as the search box and buttons.
 
       // @ts-ignore
       const feature = event.features && event.features[0];
 
-      selectFeatureOnMap(feature);
+      // @ts-ignore
+      selectFeaturesOnMap(feature, event.srcEvent.ctrlKey);
     }
   };
 
@@ -251,8 +319,8 @@ const J40Map = ({location}: IJ40Interface) => {
     const newViewPort = new WebMercatorViewport({height: viewport.height!, width: viewport.width!});
     const {longitude, latitude, zoom} = newViewPort.fitBounds(
       bounds as [[number, number], [number, number]], {
-        // padding: 200,  // removing padding and offset in favor of a zoom offset below
-        // offset: [0, -100],
+      // padding: 200,  // removing padding and offset in favor of a zoom offset below
+      // offset: [0, -100],
       });
 
     /**
@@ -266,8 +334,8 @@ const J40Map = ({location}: IJ40Interface) => {
      */
     // eslint-disable-next-line max-len
     const featureSelectionZoomLevel = (zoom - 1) < constants.GLOBAL_MIN_ZOOM_FEATURE_BORDER + .1 ?
-        constants.GLOBAL_MIN_ZOOM_FEATURE_BORDER :
-        zoom - 1;
+      constants.GLOBAL_MIN_ZOOM_FEATURE_BORDER :
+      zoom - 1;
 
     setViewport({
       ...viewport,
@@ -304,7 +372,8 @@ const J40Map = ({location}: IJ40Interface) => {
             filter: ['==', constants.GEOID_PROPERTY, selectTractId],
           });
       if (geoidSearchResults && geoidSearchResults.length > 0) {
-        selectFeatureOnMap(geoidSearchResults[0]);
+        // TODO, support searching for a list of tracts
+        selectFeaturesOnMap(geoidSearchResults[0]);
       }
       setSelectTractId(undefined);
     }
@@ -321,6 +390,23 @@ const J40Map = ({location}: IJ40Interface) => {
     setGeolocationInProgress(true);
   };
 
+  /**
+   * Handler for when there is a change in the multi select side panel.
+   * @param feature the feature that was added or removed
+   */
+  const onReportDeleteTract = (feature: MapGeoJSONFeature) => {
+    updateSelectedFeatures(feature, true);
+  };
+
+  /**
+   * Handler for when the multi select is finished.
+   */
+  const onReportExit = () => {
+    // Clear everything
+    setSelectedFeatures([]);
+    setDetailViewData(undefined);
+    setInMultiSelectMode(false);
+  };
 
   return (
     <>
@@ -355,15 +441,15 @@ const J40Map = ({location}: IJ40Interface) => {
           // access token is j40StylesReadToken
           mapboxApiAccessToken={
             process.env.MAPBOX_STYLES_READ_TOKEN ?
-            process.env.MAPBOX_STYLES_READ_TOKEN : ''}
+              process.env.MAPBOX_STYLES_READ_TOKEN : ''}
 
           // ****** Map state props: ******
           // http://visgl.github.io/react-map-gl/docs/api-reference/interactive-map#map-state
           {...viewport}
           mapStyle={
             process.env.MAPBOX_STYLES_READ_TOKEN ?
-            'mapbox://styles/justice40/cl9g30qh7000p15l9cp1ftw16' :
-            'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
+              'mapbox://styles/justice40/cl9g30qh7000p15l9cp1ftw16' :
+              'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
           }
           width="100%"
           // Ajusting this height with a conditional statement will not render the map on staging.
@@ -406,13 +492,12 @@ const J40Map = ({location}: IJ40Interface) => {
           }
 
           <MapTractLayers
-            selectedFeature={selectedFeature}
-            selectedFeatureId={selectedFeatureId}
+            selectedFeatures={selectedFeatures}
           />
 
           {/* This is the first overlayed row on the map: Search and Geolocation */}
           <div className={styles.mapHeaderRow}>
-            <MapSearch goToPlace={goToPlace}/>
+            <MapSearch goToPlace={goToPlace} />
 
             {/* Geolocate Icon */}
             <div className={styles.geolocateBox}>
@@ -420,8 +505,8 @@ const J40Map = ({location}: IJ40Interface) => {
                 windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG - 1 &&
                 <div className={
                   (geolocationInProgress && !isGeolocateLocked) ?
-                  styles.geolocateMessage :
-                  styles.geolocateMessageHide
+                    styles.geolocateMessage :
+                    styles.geolocateMessageHide
                 }>
                   {intl.formatMessage(EXPLORE_COPY.MAP.GEOLOC_MSG_LOCATING)}
                 </div>
@@ -432,7 +517,6 @@ const J40Map = ({location}: IJ40Interface) => {
                 onClick={onClickGeolocate}
                 trackUserLocation={windowWidth < constants.USWDS_BREAKPOINTS.MOBILE_LG}
                 showUserHeading={windowWidth < constants.USWDS_BREAKPOINTS.MOBILE_LG}
-                disabledLabel={intl.formatMessage(EXPLORE_COPY.MAP.GEOLOC_MSG_DISABLED)}
               />
             </div>
 
@@ -440,15 +524,15 @@ const J40Map = ({location}: IJ40Interface) => {
 
           {/* This is the second row overlayed on the map, it will add the navigation controls
           of the zoom in and zoom out buttons */}
-          { windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG && <NavigationControl
+          {windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG && <NavigationControl
             showCompass={false}
             className={styles.navigationControl}
-          /> }
+          />}
 
           {/* This is the third row overlayed on the map, it will show shortcut buttons to
           pan/zoom to US territories */}
-          { windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG &&
-            <TerritoryFocusControl onClick={onClick}/> }
+          {windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG &&
+            <TerritoryFocusControl onClick={onClick} />}
 
           {/* Enable fullscreen pop-up behind a feature flag */}
           {('fs' in flags && detailViewData && !transitionInProgress) && (
@@ -468,18 +552,27 @@ const J40Map = ({location}: IJ40Interface) => {
               />
             </Popup>
           )}
-          {'fs' in flags ? <FullscreenControl className={styles.fullscreenControl}/> :'' }
+          {'fs' in flags ? <FullscreenControl className={styles.fullscreenControl} /> : ''}
 
         </ReactMapGL>
       </Grid>
 
       <Grid desktop={{col: 3}}>
-        <MapInfoPanel
-          className={styles.mapInfoPanel}
-          featureProperties={detailViewData?.properties}
-          selectedFeatureId={selectedFeature?.id}
-          hash={zoomLatLngHash}
-        />
+        {inMultiSelectMode ?
+          <CreateReportPanel
+            className={styles.mapInfoPanel}
+            featureList={selectedFeatures}
+            deleteTractHandler={onReportDeleteTract}
+            exitHandler={onReportExit}
+            maxNumTracts={MAX_SELECTED_TRACTS}
+            showTooManyTractsAlert={showTooManyTractsAlert}
+          /> :
+          <MapInfoPanel
+            className={styles.mapInfoPanel}
+            featureProperties={detailViewData?.properties}
+            hash={zoomLatLngHash}
+          />
+        }
       </Grid>
     </>
   );

@@ -1,0 +1,52 @@
+@use '../../styles/design-system.scss' as *;
+
+.createReportContainer {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 1.2rem 1rem 0 1.2rem;
+  font-size: medium;
+  height: 100%;
+}
+
+.tractListContainer {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  height: 50%;
+  overflow-y: scroll;
+  border: grey solid thin;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.tractListItem {
+  flex-wrap: nowrap;
+  padding: 0.25rem;
+}
+
+.tractListItemHighlight {
+  flex-wrap: nowrap;
+  padding: 0.25rem;
+  font-weight: bold;
+  background-color: rgba(195, 222, 251, .5);
+}
+
+.tractListItemDelete {
+  align-content: center;
+  button:focus {
+    outline-width: 0;
+  }
+}
+
+.createReportButton {
+  align-self: center;
+  padding-top: 1rem;
+}
+
+.startOver {
+  margin-top: 1rem;
+  align-self: center;
+}

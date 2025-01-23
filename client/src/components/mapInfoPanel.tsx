@@ -5,14 +5,12 @@ import SidePanelInfo from './SidePanelInfo';
 interface IMapInfoPanelProps {
     className: string,
     featureProperties: { [key:string]: string | number } | undefined,
-    selectedFeatureId: string | number | undefined
     hash: string[],
   }
 
 const MapInfoPanel = ({
   className,
   featureProperties,
-  selectedFeatureId,
   hash,
 }:IMapInfoPanelProps) => {
   return (
@@ -22,7 +20,7 @@ const MapInfoPanel = ({
       there are two states, namely showing the AreaDetail or SidePanelInfo. When a feature
       is selected, show the AreaDetail. When not selected show SidePanelInfo
        */}
-      {(featureProperties && selectedFeatureId) ?
+      {(featureProperties) ?
           <AreaDetail
             properties={featureProperties}
             hash={hash}

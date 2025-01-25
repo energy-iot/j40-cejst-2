@@ -36,7 +36,7 @@ export const METH_2_0_RELEASE_DATE = new Date(2024, 11, 20, 11, 59, 59); // Dec 
 // Update Banner
 export const UPDATE_BANNER_HEADING_LARGE = <FormattedMessage
   id={'common.pages.alerts.banner.update.heading.large'}
- defaultMessage={'This is an unofficial copy of the CEJST Tool. We are working on an overhaul, but in the meantime some links and text may incorrectly suggest that this site is affiliated with the US Government'}
+  defaultMessage={'This is an unofficial copy of the CEJST Tool. We are working on an overhaul, but in the meantime some links and text may incorrectly suggest that this site is affiliated with the US Government'}
   description={'Alert heading that appears at the top of pages'}
 />;
 

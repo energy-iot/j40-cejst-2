@@ -13,8 +13,8 @@ import LinkTypeWrapper from '../LinkTypeWrapper';
 
 // @ts-ignore
 import {GITHUB_LINK, GITHUB_LINK_ES} from '../../constants';
-import {PAGES_ENDPOINTS} from '../../data/constants';
-import * as ABOUT_COPY from '../../data/copy/about';
+/* import {PAGES_ENDPOINTS} from '../../data/constants';
+ */import * as ABOUT_COPY from '../../data/copy/about';
 import * as COMMON_COPY from '../../data/copy/common';
 // import whitehouseIcon from '../../images/eop-seal.svg';
 
@@ -35,7 +35,7 @@ const J40Footer = () => {
           COMMON_COPY.FOOTER_CEQ_ADDRESS.PHONE,
         ]}
       />,
-    ],
+    ], /*
     [
       intl.formatMessage(COMMON_COPY.FOOTER.MORE_INFO),
       <LinkTypeWrapper
@@ -63,7 +63,7 @@ const J40Footer = () => {
         key={'contactlink'}
         dataCy={hyphenizeString(COMMON_COPY.FOOTER.FIND_CONTACT.defaultMessage)}
       />,
-    ],
+    ], */
     [
       intl.formatMessage(COMMON_COPY.FOOTER.CONTRIBUTE),
       <LinkTypeWrapper

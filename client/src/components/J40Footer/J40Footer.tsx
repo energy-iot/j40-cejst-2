@@ -1,6 +1,6 @@
 import {
   Address,
-  Logo,
+  // Logo,
   NavList,
 } from '@trussworks/react-uswds';
 import {useIntl} from 'gatsby-plugin-intl';
@@ -9,14 +9,14 @@ import React from 'react';
 import {hyphenizeString} from '../../../cypress/integration/common/helpers';
 import J40MainGridContainer from '../J40MainGridContainer';
 import LinkTypeWrapper from '../LinkTypeWrapper';
-import SurveyButton from '../SurveyButton';
+// import SurveyButton from '../SurveyButton';
 
 // @ts-ignore
 import {GITHUB_LINK, GITHUB_LINK_ES} from '../../constants';
 import {PAGES_ENDPOINTS} from '../../data/constants';
 import * as ABOUT_COPY from '../../data/copy/about';
 import * as COMMON_COPY from '../../data/copy/common';
-import whitehouseIcon from '../../images/eop-seal.svg';
+// import whitehouseIcon from '../../images/eop-seal.svg';
 
 const J40Footer = () => {
   const intl = useIntl();
@@ -100,7 +100,7 @@ const J40Footer = () => {
         </J40MainGridContainer>
       </div>
 
-      <div className="usa-footer__secondary-section">
+      {/* <div className="usa-footer__secondary-section">
         <J40MainGridContainer>
           <Logo
             size="medium"
@@ -118,8 +118,8 @@ const J40Footer = () => {
             }
           />
         </J40MainGridContainer>
-      </div>
-      <SurveyButton />
+      </div> */}
+      {/* <SurveyButton /> */}
     </footer>
   );
 };

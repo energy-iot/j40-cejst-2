@@ -1,5 +1,5 @@
 import {
-  Address,
+  // Address,
   // Logo,
   NavList,
 } from '@trussworks/react-uswds';
@@ -22,6 +22,7 @@ const J40Footer = () => {
   const intl = useIntl();
 
   const NAVLINKS = [
+    /*
     [
       intl.formatMessage(COMMON_COPY.FOOTER.CONTACT),
       <Address
@@ -35,7 +36,7 @@ const J40Footer = () => {
           COMMON_COPY.FOOTER_CEQ_ADDRESS.PHONE,
         ]}
       />,
-    ], /*
+    ],
     [
       intl.formatMessage(COMMON_COPY.FOOTER.MORE_INFO),
       <LinkTypeWrapper

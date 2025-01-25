@@ -1,4 +1,4 @@
-import React, {useMemo} from 'react';
+import React from 'react';
 import {Source, Layer} from 'react-map-gl';
 import {MapGeoJSONFeature} from 'maplibre-gl';
 
@@ -9,8 +9,7 @@ import * as constants from '../../data/constants';
 import * as COMMON_COPY from '../../data/copy/common';
 
 interface IMapTractLayers {
-    selectedFeatureId: string | number,
-    selectedFeature: MapGeoJSONFeature | undefined,
+    selectedFeatures: MapGeoJSONFeature[] | undefined,
 }
 
 /**
@@ -65,10 +64,10 @@ export const featureURLForTilesetName = (tilesetName: string): string => {
  * @return {Style}
  */
 const MapTractLayers = ({
-  selectedFeatureId,
-  selectedFeature,
+  selectedFeatures,
 }: IMapTractLayers) => {
-  const filter = useMemo(() => ['in', constants.GEOID_PROPERTY, selectedFeatureId], [selectedFeature]);
+  const selectedFeatureIds = selectedFeatures ? (selectedFeatures.map((feat) => feat.id)) : [''];
+  const filter = ['in', constants.GEOID_PROPERTY, ...selectedFeatureIds];
 
   return (
     <>

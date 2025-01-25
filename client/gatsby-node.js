@@ -5,7 +5,7 @@ path = require('path');
 //
 // In react-map-gl 7.x this is no longer needed: https://visgl.github.io/react-map-gl/docs/get-started
 //
-exports.onCreateWebpackConfig = ({stage, loaders, actions}) => {
+exports.onCreateWebpackConfig = ({stage, loaders, actions, getConfig}) => {
   actions.setWebpackConfig({
     devtool: 'eval-source-map',
     resolve: {
@@ -14,4 +14,18 @@ exports.onCreateWebpackConfig = ({stage, loaders, actions}) => {
       },
     },
   });
+
+  if (stage === 'develop') {
+    const config = getConfig();
+
+    // Silence CSS ordering warnings, which aren't a risk with CSS Modules
+    const miniCssExtractPlugin = config.plugins.find(
+        (plugin) => plugin.constructor.name === 'MiniCssExtractPlugin',
+    );
+    if (miniCssExtractPlugin) {
+      miniCssExtractPlugin.options.ignoreOrder = true;
+    }
+
+    actions.replaceWebpackConfig(config);
+  }
 };

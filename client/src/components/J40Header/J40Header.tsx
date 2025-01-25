@@ -10,7 +10,7 @@ import {
 import {Link, useIntl} from 'gatsby-plugin-intl';
 import React, {useEffect, useState} from 'react';
 import {useWindowSize} from 'react-use';
-import GovernmentBanner from '../GovernmentBanner';
+// import GovernmentBanner from '../GovernmentBanner';
 import J40MainGridContainer from '../J40MainGridContainer';
 import Language from '../Language';
 
@@ -238,7 +238,7 @@ const J40Header = ({location}:IJ40Header) => {
     <Header basic={true} role={'banner'}>
 
       {/* Banners */}
-      <GovernmentBanner />
+      {/* <GovernmentBanner /> */}
       <UpdateBanner/>
 
       {/* Logo and Navigation */}

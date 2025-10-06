@@ -48,8 +48,8 @@ For more general documentation on the project that is not related to getting set
 
 The original Justice40 project used GitHub Actions workflows for deployment:
 
-- [Staging deployment workflow](https://github.com/Public-Environmental-Data-Partners/j40-cejst-2/blob/main/.github/workflows/deploy_fe_staging.yml)
-- [Production deployment workflow](https://github.com/Public-Environmental-Data-Partners/j40-cejst-2/blob/main/.github/workflows/deploy_fe_main.yml)
+- [Staging deployment workflow](https://github.com/usds/justice40-tool/blob/main/.github/workflows/deploy_fe_staging.yml)
+- [Production deployment workflow](https://github.com/usds/justice40-tool/blob/main/.github/workflows/deploy_fe_main.yml)
 
 ## Glossary
 

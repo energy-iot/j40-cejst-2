@@ -28,19 +28,19 @@ If you install NVM using Homebrew, make sure to read the output in terminal afte
 
 Once you install NVM, don't forget to install Node! This is included in the linked tutorial above. This will also install `npm` which you need for the steps below.
 
-After you've downloaded the nvm and the latest node (using the above steps) also install node version 14 by:
+After you've downloaded the nvm and the latest node (using the above steps) also install node version 18 by:
 
-`nvm install 14`
+`nvm install 18`
 
 You should then be able to switch to that version of node by:
 
-`nvm use 14`
+`nvm use 18`
 
-To validate you are using node 14, type:
+To validate you are using node 18, type:
 
 `node -v` 
 
-This should return *Now using node 14.x.x (npm v6.x.x)*
+This should return *Now using node 18.x.x (npm v6.x.x)*
 
 #### Install Yarn
 

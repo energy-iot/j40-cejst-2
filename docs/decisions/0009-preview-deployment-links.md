@@ -117,6 +117,27 @@ Self-managed S3 bucket with static website hosting for preview deployments.
 - Bad, because it adds some complexity to the deployment process
 - Bad, because it's a small ongoing cost (though minimal)
 
+## Cost Analysis
+
+Based on actual network performance data (6.17 MB transferred per visit):
+
+### Usage Assumptions:
+
+- 20 new PRs per day (this is when we have 5-10 open source contributors per day)
+- Average PR lifespan: 5 days
+- Average concurrent PRs: 100
+- 5-10 reviewers per PR, 5 visits each = 25-50 visits per PR
+- Public sharing enabled
+
+### S3 + CloudFront:
+
+- **S3 Storage**: $0.078/month
+- **S3 Requests**: $0.012/month
+- **S3 Data Transfer**: $0 (CloudFront handles this)
+- **CloudFront Requests**: $0.019/month
+- **CloudFront Data Transfer**: $11.71/month (137.8 GB)
+- **Total**: **~$11.82/month**
+
 ## Links
 
 - [GitHub Pages Limits Documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits)

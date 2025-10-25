@@ -110,7 +110,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.STAGING_AWS_REGION }}
+          aws-region: ${{ secrets.STAGING_AWS_REGION }}
       - name: Deploy to S3
         run: aws s3 sync ./public/ s3://pedp-cejst2-staging/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/ --delete
 
@@ -123,7 +123,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.STAGING_AWS_REGION }}
+          aws-region: ${{ secrets.STAGING_AWS_REGION }}
       - name: Invalidate CloudFront Cache
         run: aws cloudfront create-invalidation --distribution-id ${{ secrets.STAGING_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/*"
 

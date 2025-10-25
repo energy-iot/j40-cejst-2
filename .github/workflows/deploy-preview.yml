@@ -1,38 +1,44 @@
-name: Deploy CEJST Preview
+name: Build and Deploy to staging (AWS)
 on:
   pull_request:
     branches:
       - main
-      - "**/release/**"
     paths:
       - "client/**/*"
 env:
   PR_NUMBER: ${{github.event.pull_request.number}}
   WORKING_DIRECTORY: ./client
 jobs:
-  build-and-deploy:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      destination-folder: ${{ steps.set-destination.outputs.destination-folder }}
+      commit-hash: ${{ steps.set-commit.outputs.commit-hash }}
+    steps:
+      - name: Set DESTINATION_FOLDER for branch
+        id: set-destination
+        run: |
+          DESTINATION_FOLDER=$(echo ${{ env.PR_NUMBER }}-${{ github.sha }} | cut -c 1-11)
+          echo "destination-folder=$DESTINATION_FOLDER" >> $GITHUB_OUTPUT
+          echo "DESTINATION_FOLDER=$DESTINATION_FOLDER" >> $GITHUB_ENV
+      - name: Set COMMIT_HASH for branch
+        id: set-commit
+        run: |
+          echo "commit-hash=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "COMMIT_HASH=${{ github.sha }}" >> $GITHUB_ENV
+
+  build:
+    runs-on: ubuntu-latest
+    needs: setup
     defaults:
       run:
         working-directory: client
-    strategy:
-      matrix:
-        node-version: [18.x]
     steps:
-      # Setup and Environment
       - uses: actions/checkout@v4
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js 18.x
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-      - name: Set DESTINATION_FOLDER for branch
-        run: |
-          echo "DESTINATION_FOLDER=$(echo $PR_NUMBER-$GITHUB_SHA | cut -c 1-11)" >> $GITHUB_ENV
-      - name: Set COMMIT_HASH for branch
-        run: |
-          echo "COMMIT_HASH=$(echo $GITHUB_SHA)" >> $GITHUB_ENV
-
-      # Build and Test
+          node-version: 18.x
       - name: Install
         run: npm ci
       - name: Build
@@ -42,37 +48,95 @@ jobs:
           # https://github.com/usds/justice40-tool/blob/main/client/README.md
           DATA_SOURCE: cdn
           # SITE_URL: "${{ secrets.STAGE_SITE_URL }}"
-          PATH_PREFIX: "/pr-${{env.DESTINATION_FOLDER}}"
+          PATH_PREFIX: "/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}"
           # MAPBOX_STYLES_READ_TOKEN: "${{ secrets.MAPBOX_STYLES_READ_TOKEN }}"
       - name: Get directory contents
         run: ls -la public
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: client/public/
+          retention-days: 1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: setup
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+      - name: Install
+        run: npm ci
+      - name: Test
+        run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: setup
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+      - name: Install
+        run: npm ci
       - name: Lint
         run: npm run lint
         # Disabling for now due to jsonlint - TODO: put this back
       # - name: License Check
       #   run: npm run licenses
-      - name: Test
-        run: npm test
 
-      # Deploy to AWS
+  deploy-s3:
+    runs-on: ubuntu-latest
+    needs: [setup, build, test, lint]
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+          path: ./public
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.PREVIEW_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.PREVIEW_AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.STAGING_AWS_REGION }}
       - name: Deploy to S3
-        run: aws s3 sync ./public/ s3://cejst-2-test/pr-${{env.DESTINATION_FOLDER}}/ --delete
-      - name: Invalidate CloudFront Cache
-        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.PREVIEW_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/pr-${{env.DESTINATION_FOLDER}}/*"
+        run: aws s3 sync ./public/ s3://pedp-cejst2-staging/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/ --delete
 
-      # Notify PR
+  invalidate-cache:
+    runs-on: ubuntu-latest
+    needs: [setup, deploy-s3]
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.STAGING_AWS_REGION }}
+      - name: Invalidate CloudFront Cache
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.STAGING_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/*"
+
+  comment-pr:
+    runs-on: ubuntu-latest
+    needs: [setup, invalidate-cache]
+    steps:
       - name: Update PR with deployed URL
         uses: mshick/add-pr-comment@v1
         with:
           message: |
             **🚢  Here is the preview deployment link: 🚢**   
-            Find it here: https://d1ut1n0e9o10r.cloudfront.net/pr-${{env.DESTINATION_FOLDER}}/ !
+            Find it here: https://dcaku0i2w0eo2.cloudfront.net/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/en/#3/33.47/-97.5 !
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           repo-token-user-login: "github-actions[bot]"
           allow-repeats: false

@@ -359,6 +359,5 @@ Navigate to your repository's **Settings** → **Secrets and variables** → **A
 
 ## Related Documentation
 
-- [AWS S3 Preview Deployments Setup Plan](aws-s3-preview-deployments.plan.md) - Detailed implementation plan
 - [Main README](../../README.md) - Project overview and quick start
 - [Installation Guide](../../INSTALLATION.md) - Complete setup instructions

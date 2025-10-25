@@ -132,11 +132,10 @@ jobs:
     needs: [setup, invalidate-cache]
     steps:
       - name: Update PR with deployed URL
-        uses: mshick/add-pr-comment@v1
+        uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
             **🚢  Here is the preview deployment link: 🚢**   
             Find it here: https://dcaku0i2w0eo2.cloudfront.net/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/en/#3/33.47/-97.5 !
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          repo-token-user-login: "github-actions[bot]"
-          allow-repeats: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-tag: preview-deployment

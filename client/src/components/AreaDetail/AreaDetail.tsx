@@ -14,7 +14,7 @@ import TractDemographics from "../TractDemographics";
 import TractInfo from "../TractInfo";
 import TractPrioritization from "../TractPrioritization";
 
-// Styles and constants to be used in the component
+// Styles and constants:
 import * as constants from "../../data/constants";
 import * as EXPLORE_COPY from "../../data/copy/explore";
 import * as styles from "./areaDetail.module.scss";
@@ -196,7 +196,7 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
       null;
 
   /**
-   * The workforce development category has some indicators whose source will vary depending on which
+   * The workforce development category has some indicators who's source will vary depending on which
    * territory is selected. This function allows us to change the source of workforce development indicators
    * depending on which territory was selected
    *

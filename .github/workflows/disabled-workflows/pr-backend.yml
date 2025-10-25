@@ -2,6 +2,8 @@ name: Pull Request Backend
 
 on:
   pull_request:
+    branches:
+      - not-a-real-branch
     paths:
       - "data/**"
 concurrency:

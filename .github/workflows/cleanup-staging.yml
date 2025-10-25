@@ -7,6 +7,8 @@ on:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -61,7 +63,7 @@ jobs:
           fi
 
       - name: Comment on PR about cleanup
-        uses: mshick/add-pr-comment@v1
+        uses: thollander/actions-comment-pull-request@v3
         with:
           message: |
             **🧹 Preview deployment cleaned up! 🧹**
@@ -69,6 +71,5 @@ jobs:
             All preview deployment folders for this PR have been deleted from S3 and CloudFront cache has been invalidated.
 
             **Cleaned up PR**: #${{ github.event.pull_request.number }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          repo-token-user-login: "github-actions[bot]"
-          allow-repeats: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-tag: cleanup-notification

@@ -1,35 +1,84 @@
-# Justice40 Github Actions Workflows
+# CEJST2 Github Actions Workflows
 
-This directory has the github actions workflows for the Justice40 Project.
+This directory contains the GitHub Actions workflows for the CEJST2 (Climate and Economic Justice Screening Tool) project.
 
-This project is deployed on an AWS account managed by [GeoPlatform.gov](https://www.geoplatform.gov/), and github actions is used to automate the data pipeline and all deployment steps.
-
-The names of the Github Actions stages in the yaml files should describe what each step does, so it is best to refer there to understand the latest of what everything is doing.
-
-To mitigate the risk of having this README quickly become outdated as the project evolves, avoid documenting anything application or data pipeline specific here. Instead, go back up to the [top level project README](/README.md) and refer to the documentation on those components directly.
+The project uses GitHub Actions to automate the build, test, and deployment processes for both the frontend client and backend data pipeline.
 
 ## List of Current Workflows
 
-### Check Markdown Links
-Runs Linkspector with Reviewdog on pull requests to identify and report on dead hyperlinks within the code.
+### Build and Deploy to prod (Github pages)
 
-### CodeQL
-Runs Github's CodeQL engine against the code to check for security vulnerabilities.
+- **File**: `deploy-production.yml`
+- **Trigger**: Push to main branch with changes to `client/**/*`
+- **Purpose**: Builds and deploys the frontend to GitHub Pages for production
+- **Jobs**: Build, test, lint, translations, deploy to GitHub Pages
 
-### Compile Mermaid to MD
-Compiles mermaid markdown into images. This action should be deprecated as the action is no longer supported
+### Deploy CEJST Preview
 
-### Deploy Backend Main
-Builds and deploys the backend data pipeline to AWS. This workflow is set to be triggered manually.
+- **File**: `deploy-preview.yml`
+- **Trigger**: Pull requests targeting main branch with changes to `client/**/*`
+- **Purpose**: Creates preview deployments for pull requests using AWS S3 and CloudFront
+- **Jobs**: Setup, build, test, lint, deploy to S3, invalidate CloudFront cache, comment on PR
+- **Output**: Preview URL posted as PR comment
 
-### Deploy Frontend Main
-Builds and deploys the frontend web client to AWS when changes to the ./client directory are merged into main.
+### Cleanup Preview Deployment
 
-### Ping Check
-Runs a check on the J40 website checking for a return of status 200
+- **File**: `cleanup-preview.yml`
+- **Trigger**: Pull request closed (merged or closed without merging)
+- **Purpose**: Cleans up S3 folders and CloudFront cache for closed pull requests
+- **Jobs**: Delete all PR-specific S3 folders, invalidate CloudFront cache, comment on PR
 
 ### Pull Request Backend
-Builds the backend data pipeline when a pull request is opened with changes within the ./data directory 
 
-### Pull Request Frontend
-Builds the frontend web client when a pull request is opened with changes within the ./client directory
+- **File**: `pr_backend.yml`
+- **Trigger**: Pull requests with changes to `data/**/*`
+- **Purpose**: Builds and tests the backend data pipeline for pull requests
+
+### Check Markdown Links
+
+- **Trigger**: Pull requests
+- **Purpose**: Runs Linkspector with Reviewdog to identify and report dead hyperlinks
+
+### CodeQL
+
+- **Trigger**: Pull requests and pushes
+- **Purpose**: Runs GitHub's CodeQL engine to check for security vulnerabilities
+
+### Compile Mermaid to MD
+
+- **Purpose**: Compiles Mermaid markdown into images (deprecated)
+
+### Ping Check
+
+- **Purpose**: Runs a health check on the website to verify status 200 response
+
+## Deployment Architecture
+
+### Production Deployment
+
+- **Target**: GitHub Pages
+- **URL**: https://public-environmental-data-partners.github.io/j40-cejst-2/
+- **Trigger**: Main branch pushes
+
+### Preview Deployments
+
+- **Target**: AWS S3 + CloudFront
+- **URL Pattern**: `https://{cloudfront-domain}/j40-cejst-2/pr-{pr-number}-{commit-hash}/`
+- **Trigger**: Pull requests
+- **Cleanup**: Automatic cleanup when PR is closed
+
+## Required Secrets and Variables
+
+### Repository Secrets
+
+- `STAGING_AWS_ACCESS_KEY_ID`: AWS access key for S3/CloudFront
+- `STAGING_AWS_SECRET_ACCESS_KEY`: AWS secret key for S3/CloudFront
+- `STAGING_CLOUDFRONT_DISTRIBUTION_ID`: CloudFront distribution ID
+
+### Repository Variables
+
+- `STAGING_AWS_REGION`: AWS region for S3 bucket
+- `SITE_URL`: Production site URL
+- `PATH_PREFIX`: Base path for the application
+
+For detailed setup instructions, see [AWS Infrastructure Setup Guide](../../docs/architecture/aws-infrastructure-setup.md).

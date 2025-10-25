@@ -17,8 +17,11 @@ jobs:
       - name: Set DESTINATION_FOLDER for branch
         id: set-destination
         run: |
-          DESTINATION_FOLDER=$(echo ${{ env.PR_NUMBER }}-${{ github.sha }} | cut -c 1-11)
+          PR_COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+          DESTINATION_FOLDER=$(echo ${{ env.PR_NUMBER }}-$PR_COMMIT_SHA | cut -c 1-11)
           echo "destination-folder=$DESTINATION_FOLDER" >> $GITHUB_OUTPUT
+          echo "The head commit SHA of the PR is: $PR_COMMIT_SHA"
+          echo "Destination folder will be: $DESTINATION_FOLDER"
 
   build:
     runs-on: ubuntu-latest
@@ -170,3 +173,4 @@ jobs:
             Find it here: https://dcaku0i2w0eo2.cloudfront.net/j40-cejst-2/pr-${{ needs.setup.outputs.destination-folder }}/en/#3/33.47/-97.5 !
           github-token: ${{ secrets.GITHUB_TOKEN }}
           comment-tag: preview-deployment
+          mode: recreate

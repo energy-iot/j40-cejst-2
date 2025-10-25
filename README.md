@@ -51,6 +51,10 @@ The original Justice40 project used GitHub Actions workflows for deployment:
 - [Staging deployment workflow](https://github.com/usds/justice40-tool/blob/main/.github/workflows/deploy_fe_staging.yml)
 - [Production deployment workflow](https://github.com/usds/justice40-tool/blob/main/.github/workflows/deploy_fe_main.yml)
 
+### AWS Infrastructure Setup
+
+For setting up AWS infrastructure (S3 buckets, CloudFront distributions, IAM configurations) required for deployments, see the [AWS Infrastructure Setup Guide](docs/architecture/aws-infrastructure-setup.md).
+
 ## Glossary
 
 Confused about a term? Heard an acronym and have no idea what it stands for? Check out [our glossary](docs/glossary.md)!

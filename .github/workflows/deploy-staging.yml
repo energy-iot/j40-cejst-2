@@ -13,19 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       destination-folder: ${{ steps.set-destination.outputs.destination-folder }}
-      commit-hash: ${{ steps.set-commit.outputs.commit-hash }}
     steps:
       - name: Set DESTINATION_FOLDER for branch
         id: set-destination
         run: |
           DESTINATION_FOLDER=$(echo ${{ env.PR_NUMBER }}-${{ github.sha }} | cut -c 1-11)
           echo "destination-folder=$DESTINATION_FOLDER" >> $GITHUB_OUTPUT
-          echo "DESTINATION_FOLDER=$DESTINATION_FOLDER" >> $GITHUB_ENV
-      - name: Set COMMIT_HASH for branch
-        id: set-commit
-        run: |
-          echo "commit-hash=${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "COMMIT_HASH=${{ github.sha }}" >> $GITHUB_ENV
 
   build:
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-Copyright for portions of this repo j40-cejst-2 are held by the US Government and are licensed under CC0 1.0 Universal. Copyright for portions of j40-cejst-2 created on or after January 24, 2025 (beginning with commit b854056) are held by Public Environmental Data Partners and licensed under GNU AGPLv3.
+Copyright for portions of this repo j40-cejst-2 created before January 24, 2025 are held by the US Government and are licensed under CC0 1.0 Universal. Copyright for portions of j40-cejst-2 created on or after January 24, 2025 (beginning with commit b854056) are held by Public Environmental Data Partners and licensed under GNU AGPLv3.
 
 
 # GNU AFFERO GENERAL PUBLIC LICENSE

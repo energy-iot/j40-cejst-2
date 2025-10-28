@@ -1,8 +1,8 @@
 # Preview Deployment Links for Pull Requests
 
-- Status: proposed
+- Status: approved
 - Deciders: Development Team
-- Date: 2025-01-27
+- Date: 2025-10-25
 - Tags: deployment, preview, pull-requests, github-actions
 
 Technical Story: Need to provide preview deployment links for pull requests to enable stakeholders to review changes before merging to main branch.

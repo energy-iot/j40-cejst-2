@@ -1,36 +1,47 @@
-@use '../../styles/design-system.scss' as *;
+@use "../../styles/design-system.scss" as *;
 
 @mixin baseLanguageStyles {
-  @include u-margin-right(4);
+  @include u-margin-right(1);
   @include u-display("flex");
 
   .languageIcon {
     align-self: baseline;
   }
 
+  .languageLinks {
+    @include u-display("inline-flex");
+    @include u-margin-left(1.5);
+    gap: 0.5rem; // Add spacing between language links
+    align-items: center;
+  }
+
   .languageLink {
     @include u-display("inline-block");
-    @include u-margin-left(1.5);
-    
     cursor: pointer;
-    font-size: .8rem; // government banner text size not a token
-    @include u-padding-top('2px');
-    
+    font-size: 0.8rem; // government banner text size not a token
+    @include u-padding-top("2px");
+  }
+
+  .languageLinkActive {
+    @include u-display("inline-block");
+    font-size: 0.8rem; // government banner text size not a token
+    @include u-padding-top("2px");
+    font-weight: bold; // Make active language bold
+    color: inherit; // Use current text color
   }
 }
 
 .languageContainer {
-    @include baseLanguageStyles();
-    @include at-media-max("desktop") {
-      display: none;
-    }
+  @include baseLanguageStyles();
+  @include at-media-max("desktop") {
+    display: none;
   }
-  
-  .languageContainerMobile {
-    @include baseLanguageStyles();
-    @include u-padding-top(3);
-    @include at-media("desktop") {
-      display: none;
-    }
+}
+
+.languageContainerMobile {
+  @include baseLanguageStyles();
+  @include u-padding-top(3);
+  @include at-media("desktop") {
+    display: none;
   }
-  
+}

@@ -370,13 +370,13 @@ export const USWDS_BREAKPOINTS = {
 // ********** SURVEY LINKS ***************
 
 export const DATA_SURVEY_LINKS = {
-  EN: "https://eop.gov1.qualtrics.com/jfe/form/SV_3WC1hmbqoS4Ak2G",
-  ES: "https://eop.gov1.qualtrics.com/jfe/form/SV_bNsBlreFIhs9uFU",
+  EN: "https://docs.google.com/forms/d/e/1FAIpQLSc_nxBGIs9q8yg1RlgePhpevBePGJVE9NYLWBnwhd46wt-67A/viewform",
+  ES: "https://docs.google.com/forms/d/e/1FAIpQLSdB-4Viwb6KJIUQjMLxfqxsJXlg-gQ61PGT524AGill9Mf_Pg/viewform",
 };
 
 export const SITE_SATISFACTION_SURVEY_LINKS = {
-  EN: "https://eop.gov1.qualtrics.com/jfe/form/SV_2mF9GXOhDKKjxcy",
-  ES: "https://eop.gov1.qualtrics.com/jfe/form/SV_bgfSa2U8NGuyr9c",
+  EN: "https://docs.google.com/forms/d/e/1FAIpQLSe8kbo10ViosV_2aQHQd9EDUVPtSU7IjtblqZF3d96CiarxFA/viewform",
+  ES: "https://docs.google.com/forms/d/e/1FAIpQLSeNXlgsdJKWZ9pw3eyrkOelPLJGkqjkqYE63huHkEa_q2L4DQ/viewform",
 };
 
 export const CONTACT_SURVEY_LINKS = {

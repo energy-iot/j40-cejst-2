@@ -64,7 +64,7 @@ graph LR
 
 You can perform these steps either using Docker or by running the application in your local environment.
 
-![CEJST Data Pipeline Diagram](/docs/architecture/cejst-data-pipeline-diagram.png "CEJST Data Pipeline Diagram")
+![CEJST Data Pipeline Diagram](../../docs/architecture/cejst-data-pipeline-diagram.png "CEJST Data Pipeline Diagram")
 
 ### Running with Docker
 

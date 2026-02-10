@@ -64,6 +64,8 @@ graph LR
 
 You can perform these steps either using Docker or by running the application in your local environment.
 
+![CEJST Data Pipeline Diagram](/docs/architecture/cejst-data-pipeline-diagram.png "CEJST Data Pipeline Diagram")
+
 ### Running with Docker
 
 Docker can be used to run the application inside a container without setting up a local environment.

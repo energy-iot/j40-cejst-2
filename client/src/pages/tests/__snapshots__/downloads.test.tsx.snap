@@ -275,11 +275,6 @@ exports[`rendering of the DatasetContainer checks if various text fields are vis
           class="grid-col-12 tablet:grid-col-8"
           data-testid="grid"
         >
-          <h2
-            class="j40-mt-0 j40-mb-3"
-          >
-            Version 2.0 file formats
-          </h2>
           <section>
             <div>
               <span>
@@ -306,7 +301,25 @@ exports[`rendering of the DatasetContainer checks if various text fields are vis
                 <div>
                   <div>
                     <div>
-                      Version 2.0 Release update - Dec 20, 2024
+                      Version 2.1 Release update - Mar 20, 2026
+                    </div>
+                    <div>
+                      New & Improved
+                    </div>
+                    <div>
+                      <ul>
+                        <li>
+                          Added the ability to view disadvantaged communities by burdens of interest
+                        </li>
+                      </ul>
+                    </div>
+                    <div>
+                      Note: None of the underlying data has changed
+                    </div>
+                  </div>
+                  <div>
+                    <div>
+                      Version 2.1 Release update - Dec 20, 2024
                     </div>
                     <div>
                       New & Improved

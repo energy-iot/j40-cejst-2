@@ -265,6 +265,7 @@ export const SELECTED_FEATURE_BORDER_LAYER_ID =
   "selected-feature-border-layer-id";
 
 export const TRIBAL_LAYER_ID = "tribal-layer-id";
+export const TRIBAL_FEATURE_BORDER_LAYER_ID = "tribal-feature-border-layer-id";
 export const TRIBAL_ALASKA_POINTS_LAYER_ID = "tribal-alaska-points-layer-id";
 export const TRIBAL_LABELS_LAYER_ID = "tribal-labels-layer-id";
 
@@ -284,7 +285,7 @@ export const GLOBAL_MAX_ZOOM_HIGH = 11;
 
 export const GLOBAL_MIN_ZOOM_FEATURE_BORDER = 5;
 export const GLOBAL_MAX_ZOOM_FEATURE_BORDER = 22;
-export const TRIBAL_MIN_ZOOM = 6.6;
+export const TRIBAL_MIN_ZOOM = 5;
 export const TRIBAL_MAX_ZOOM = 22;
 export const ALASKA_MIN_ZOOM = 3;
 export const ALASKA_MAX_ZOOM = 22;
@@ -365,6 +366,15 @@ export const DEFAULT_CENTER = [33.4687126, -97.502136];
 export const USWDS_BREAKPOINTS = {
   MOBILE_LG: 480,
   DESKTOP: 1024,
+};
+
+// LayerFilter: use full-screen overlay (instead of dropdown) when viewport is too short
+// so the dropdown is not clipped by the map container.
+export const LAYER_FILTER_OVERLAY_VIEWPORT_HEIGHT = {
+  /** Min viewport height (px) to use dropdown when width >= DESKTOP (1024). */
+  MIN_DESKTOP: 900,
+  /** Min viewport height (px) to use dropdown when width < DESKTOP (map is 55vh). */
+  MIN_NARROW: 1450,
 };
 
 // ********** SURVEY LINKS ***************

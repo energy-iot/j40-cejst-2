@@ -1,0 +1,361 @@
+@use '../../styles/design-system.scss' as *;
+
+.layerFilterContainer {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1001;
+
+  // On mobile, flow in layout so the parent wrapper gets height and the button stays visible.
+  &[data-mobile="true"] {
+    position: static;
+    top: auto;
+    right: auto;
+  }
+}
+
+.filterHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.zoomMessageBanner {
+  background-color: #5c5c5c;
+  color: white;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.zoomMessageBannerFadeIn {
+  animation: zoomMessageFadeIn 0.4s ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes zoomMessageFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.zoomMessageBannerEnabled {
+  background-color: #e46200;
+}
+
+// Reserves space for the "all burdens" message to prevent layout shift when it appears
+.zoomMessageBannerReserveSpace {
+  visibility: hidden;
+}
+
+.layersButton {
+  background-color: white;
+  border: 1px solid #757575;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+}
+
+.layersButtonDisabled {
+  background-color: #e5e5e5;
+  border-color: #adadad;
+  color: #5c5c5c;
+  cursor: not-allowed;
+  box-shadow: none;
+
+  &:hover {
+    background-color: #e5e5e5;
+  }
+}
+
+.chevron {
+  font-size: 10px;
+  color: #757575;
+}
+
+// Mobile full-screen overlay: covers entire viewport, header row with tract count + X, panel below
+.fullScreenOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.25s ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+.fullScreenHeader {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  gap: 12px;
+}
+
+.fullScreenTractCount {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1b1b1b;
+}
+
+.fullScreenClose {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+  color: #1b1b1b;
+  background-color: #fff;
+  border: 1px solid #757575;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+}
+
+.fullScreenPanel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+  transform: translateY(0);
+  }
+}
+
+.dropdownPanel {
+  background-color: white;
+  border: 1px solid #757575;
+  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  margin-top: 8px;
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 600px;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.panelTitle {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 16px;
+  color: #1b1b1b;
+}
+
+.mainCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 14px;
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+
+    span {
+      opacity: 0.6;
+      color: #757575;
+    }
+  }
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  padding-left: 24px;
+  cursor: pointer;
+  font-size: 14px;
+
+  &:hover {
+    background-color: #f5f5f5;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+
+    span {
+      opacity: 0.6;
+      color: #757575;
+    }
+  }
+}
+
+.checkbox {
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.indicatorsList {
+  padding: 8px 0;
+  margin-left: 0;
+}
+
+.categoriesContainer {
+  margin: 16px 0;
+}
+
+.categoryDetails {
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  // Smooth expand/collapse animation for indicators list
+  // Works for both manual expand/collapse and auto-expand
+  .indicatorsList {
+    will-change: opacity, transform; // Optimize for animation
+  }
+
+  // Reset animation state when closed to ensure it re-triggers
+  &:not([open]) .indicatorsList {
+    animation: none; // Reset animation when closed
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  // Trigger animation when opening (works every time)
+  &[open] .indicatorsList {
+    animation: slideDown 0.2s ease-out;
+    animation-fill-mode: forwards; // Keep final state
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.categorySummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 0;
+  list-style: none;
+  color: #1b1b1b;
+
+  // Hide default disclosure marker
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &::marker {
+    display: none;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+
+    .categoryName,
+    .countBadge {
+      opacity: 0.6;
+      color: #757575;
+    }
+  }
+}
+
+.categoryCheckbox {
+  cursor: pointer;
+  flex-shrink: 0;
+  // Ensure adequate touch target size for mobile accessibility
+  // The summary row provides the full touch target area
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.categoryName {
+  flex: 1;
+  min-width: 0; // Allow text to truncate if needed
+}
+
+.countBadge {
+  font-size: 12px;
+  color: #595959;
+  font-weight: normal;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 8px;
+  white-space: nowrap;
+  
+  // Ensure it doesn't cause text wrapping
+  min-width: fit-content;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.resetButton {
+  flex: 1;
+}
+
+.applyButton {
+  flex: 1;
+}
+

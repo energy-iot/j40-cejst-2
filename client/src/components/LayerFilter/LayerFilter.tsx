@@ -1,0 +1,636 @@
+import React, {useState, useRef, useEffect, useMemo} from 'react';
+import ReactDOM from 'react-dom';
+import {useIntl} from 'gatsby-plugin-intl';
+import {Button} from '@trussworks/react-uswds';
+import * as styles from './LayerFilter.module.scss';
+import * as LAYER_FILTER_COPY from '../../data/copy/layerFilter';
+import * as EXPLORE_COPY from '../../data/copy/explore';
+import {INDICATOR_REGISTRY, getIndicatorsByCategory, getIndicatorById} from '../../data/indicators/registry';
+import {
+  getDisabledIndicatorIdsForRegion,
+  DISABLED_CATEGORY_IDS_WHEN_ISLAND_AREAS,
+} from '../../data/territoryConfig';
+import * as constants from '../../data/constants';
+import type {MapRegion} from '../../utils/mapRegion';
+
+interface ILayerFilter {
+  /** Current map zoom level; used for enable/disable and messaging (zl < 5 = low zoom) */
+  zoom?: number;
+  /** When in a territory (PR or Island Areas), disables checkboxes for burdens not shown there. */
+  mapRegion?: MapRegion;
+  onFiltersChange: (filters: LayerFilters) => void;
+  onOverlayStateChange?: (isOpen: boolean) => void;
+  /** When true, use mobile layout (full-screen overlay); layout is handled by parent. */
+  isMobile?: boolean;
+  /** Selected tract count (for mobile overlay header); from getSelectedTractCount(layerFilters). */
+  selectedCount?: number;
+  /** Total tract count (for mobile overlay header). */
+  totalCount?: number;
+}
+
+/**
+ * Whether the given indicator checkbox should be disabled for the current map region.
+ * Tribal lands are disabled when not in nation.
+ * @param {string} indicatorId Registry indicator ID (or 'tribalLands')
+ * @param {MapRegion} mapRegion Current map region from viewport
+ * @return {boolean} True if indicator should be disabled
+ */
+function isIndicatorDisabledForRegion(indicatorId: string, mapRegion: MapRegion): boolean {
+  if (indicatorId === 'tribalLands') return mapRegion !== 'nation';
+  return getDisabledIndicatorIdsForRegion(mapRegion).has(indicatorId);
+}
+
+export interface LayerFilters {
+  identifiedAsDisadvantaged: boolean;
+  indicators: {
+    [key: string]: boolean;
+  };
+}
+
+/**
+ * Builds the CATEGORIES array from the indicator registry.
+ * Uses canonical IDs (AreaDetail variable names) as indicator IDs.
+ * Category messages come directly from EXPLORE_COPY to match AreaDetail.
+ * @return {Array} Array of category objects matching the CATEGORIES structure
+ */
+export const buildCategoriesFromRegistry = () => {
+  // Map category IDs (from registry) to their message descriptors (from EXPLORE_COPY)
+  // This ensures LayerFilter uses the same category names as AreaDetail
+  const categoryMessageMap: {[key: string]: any} = {
+    climate: EXPLORE_COPY.SIDE_PANEL_CATEGORY.CLIMATE,
+    energy: EXPLORE_COPY.SIDE_PANEL_CATEGORY.CLEAN_ENERGY,
+    health: EXPLORE_COPY.SIDE_PANEL_CATEGORY.HEALTH_BURDEN,
+    housing: EXPLORE_COPY.SIDE_PANEL_CATEGORY.SUSTAIN_HOUSE,
+    pollution: EXPLORE_COPY.SIDE_PANEL_CATEGORY.LEG_POLLUTE,
+    transportation: EXPLORE_COPY.SIDE_PANEL_CATEGORY.CLEAN_TRANSPORT,
+    water: EXPLORE_COPY.SIDE_PANEL_CATEGORY.CLEAN_WATER,
+    workforce: EXPLORE_COPY.SIDE_PANEL_CATEGORY.WORK_DEV,
+  };
+
+  // Get all indicators from registry, grouped by category
+  const categories: Array<{
+    id: string;
+    nameMessage: any;
+    indicators: Array<{id: string; property: string}>;
+  }> = [];
+
+  // Get unique category IDs (excluding 'shared')
+  const categoryIds = Array.from(
+      new Set(
+          Object.values(INDICATOR_REGISTRY)
+              .map((indicator) => indicator.category)
+              .filter((category) => category !== 'shared'),
+      ),
+  ).sort();
+
+  // Build category structure
+  for (const categoryId of categoryIds) {
+    const indicators = getIndicatorsByCategory(categoryId);
+    const categoryIndicators = indicators.map((indicator) => ({
+      id: indicator.id, // Use canonical ID (AreaDetail variable name)
+      property: indicator.thresholdPropertyName, // Use threshold property name
+    }));
+
+    categories.push({
+      id: categoryId,
+      nameMessage: categoryMessageMap[categoryId],
+      indicators: categoryIndicators,
+    });
+  }
+
+  return categories;
+};
+
+// Category structure with indicators
+// Generated from registry using canonical IDs (AreaDetail variable names)
+// Using message objects for i18n - names and labels will be formatted with intl.formatMessage()
+export const CATEGORIES = buildCategoriesFromRegistry();
+
+const LayerFilter = ({
+  zoom,
+  mapRegion = 'nation',
+  onFiltersChange,
+  onOverlayStateChange,
+  isMobile,
+  selectedCount = 0,
+  totalCount = 0,
+}: ILayerFilter) => {
+  const intl = useIntl();
+  const [isOpen, setIsOpen] = useState(false);
+  const [filters, setFilters] = useState<LayerFilters>({
+    identifiedAsDisadvantaged: true,
+    indicators: {},
+  });
+  // Track category checkbox states independently (not connected to indicators yet)
+  const [categoryStates, setCategoryStates] = useState<{[key: string]: boolean}>({});
+  // Track which categories are expanded
+  // This state persists across dropdown open/close (component doesn't unmount)
+  // State resets on page refresh (React component remounts)
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  // Track which category was just auto-expanded (for smooth scroll)
+  const [justExpanded, setJustExpanded] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const categoryRefs = useRef<{[key: string]: HTMLDetailsElement | null}>({});
+  const categoryCheckboxRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
+
+  // Zoom-based UI state: zl < 5 = low zoom (disable + messages); zl >= 5 = enabled
+  const zoomLevel = zoom ?? constants.GLOBAL_MIN_ZOOM;
+  const isLowZoom = zoomLevel < constants.GLOBAL_MIN_ZOOM_HIGH;
+  const defaultOnly =
+    filters.identifiedAsDisadvantaged &&
+    !Object.values(filters.indicators).some(Boolean);
+  const zoomUiState = isLowZoom && defaultOnly ? 1 : isLowZoom ? 3 : 2; // 1 | 2 | 3
+
+  // When view moves to a territory, uncheck any indicators that are disabled there (including Tribal lands)
+  useEffect(() => {
+    if (mapRegion === 'nation') return;
+
+    const disabledIds = getDisabledIndicatorIdsForRegion(mapRegion);
+
+    const newIndicators = {...filters.indicators};
+    let changed = false;
+    disabledIds.forEach((id) => {
+      if (newIndicators[id]) {
+        delete newIndicators[id];
+        changed = true;
+      }
+    });
+    if (newIndicators.tribalLands) {
+      delete newIndicators.tribalLands;
+      changed = true;
+    }
+    if (!changed) return;
+
+    const newFilters: LayerFilters = {
+      identifiedAsDisadvantaged: filters.identifiedAsDisadvantaged,
+      indicators: newIndicators,
+    };
+
+    const newCategoryStates = {...categoryStates};
+    if (mapRegion === 'island_areas') {
+      DISABLED_CATEGORY_IDS_WHEN_ISLAND_AREAS.forEach((catId) => {
+        newCategoryStates[catId] = false;
+      });
+    }
+    for (const cat of CATEGORIES) {
+      const selectedInCat = cat.indicators.filter((ind) => newFilters.indicators[ind.id]).length;
+      newCategoryStates[cat.id] = selectedInCat > 0;
+    }
+
+    setFilters(newFilters);
+    setCategoryStates(newCategoryStates);
+    onFiltersChange(newFilters);
+    // Intentionally depend only on mapRegion; use current filters/categoryStates when it changes
+  }, [mapRegion]);
+
+  // Helper function to get indicator label message from registry
+  // Uses registry as single source of truth for i18n keys
+  const getIndicatorLabelMessage = (indicatorId: keyof typeof INDICATOR_REGISTRY) => {
+    const indicator = getIndicatorById(indicatorId);
+    return indicator.i18nKey;
+  };
+
+  // Helper function to find category by ID
+  const findCategoryById = (categoryId: string) => {
+    return CATEGORIES.find((cat) => cat.id === categoryId);
+  };
+
+  const handleIdentifiedAsDisadvantagedChange = (checked: boolean) => {
+    const newFilters: LayerFilters = {
+      identifiedAsDisadvantaged: checked,
+      indicators: checked ? {} : {...filters.indicators},
+    };
+
+    // When "Identified as Disadvantaged" is checked, clear all category checkbox states
+    // since all indicators are cleared
+    if (checked) {
+      setCategoryStates({});
+    }
+
+    setFilters(newFilters);
+    onFiltersChange(newFilters);
+  };
+
+  const handleIndicatorChange = (indicatorId: string, checked: boolean) => {
+    const newFilters: LayerFilters = {
+      identifiedAsDisadvantaged: false, // Auto-uncheck when any indicator is checked
+      indicators: {
+        ...filters.indicators,
+        [indicatorId]: checked,
+      },
+    };
+    // Remove unchecked indicators
+    if (!checked) {
+      delete newFilters.indicators[indicatorId];
+    }
+
+    // Find which category this indicator belongs to and update category checkbox state
+    const category = CATEGORIES.find((cat) =>
+      cat.indicators.some((ind) => ind.id === indicatorId),
+    );
+
+    if (category) {
+      // Count how many indicators in this category are selected
+      const selectedCount = category.indicators.filter((ind) =>
+        newFilters.indicators[ind.id],
+      ).length;
+
+      // Category is checked if any indicators are selected
+      // Category is unchecked if no indicators are selected
+      const categoryChecked = selectedCount > 0;
+
+      setCategoryStates((prev) => ({
+        ...prev,
+        [category.id]: categoryChecked,
+      }));
+    }
+
+    setFilters(newFilters);
+    onFiltersChange(newFilters);
+  };
+
+  const handleCategoryChange = (categoryId: string, checked: boolean) => {
+    // Find the category
+    const category = findCategoryById(categoryId);
+    if (!category) {
+      console.warn(`Category with id "${categoryId}" not found`);
+      return;
+    }
+
+    // Handle edge case: category with no indicators
+    if (category.indicators.length === 0) {
+      console.warn(`Category "${intl.formatMessage(category.nameMessage)}" has no indicators`);
+      return;
+    }
+
+    // Update category checkbox state
+    setCategoryStates((prev) => ({
+      ...prev,
+      [categoryId]: checked,
+    }));
+
+    // Build new filters object
+    const newFilters: LayerFilters = {
+      identifiedAsDisadvantaged: checked ? false : filters.identifiedAsDisadvantaged,
+      indicators: {
+        ...filters.indicators,
+      },
+    };
+
+    if (checked) {
+      // Select all enabled indicators in this category (skip disabled for current mapRegion)
+      category.indicators.forEach((indicator) => {
+        if (!isIndicatorDisabledForRegion(indicator.id, mapRegion)) {
+          newFilters.indicators[indicator.id] = true;
+        }
+      });
+      // Auto-expand category when selected
+      setExpandedCategories((prev) => new Set(prev).add(categoryId));
+      // Mark as just expanded for smooth scroll
+      setJustExpanded(categoryId);
+    } else {
+      // Deselect all indicators in this category
+      category.indicators.forEach((indicator) => {
+        delete newFilters.indicators[indicator.id];
+      });
+    }
+
+    setFilters(newFilters);
+    onFiltersChange(newFilters);
+  };
+
+  const handleResetFilters = () => {
+    const defaultFilters: LayerFilters = {
+      identifiedAsDisadvantaged: true,
+      indicators: {},
+    };
+    setFilters(defaultFilters);
+    setCategoryStates({});
+    setExpandedCategories(new Set()); // Collapse all categories on reset
+    onFiltersChange(defaultFilters);
+  };
+
+  const handleApply = () => {
+    setIsOpen(false);
+  };
+
+  // Calculate count of selected indicators for a category (memoized)
+  const getCategorySelectedCount = useMemo(() => {
+    const countMap: {[key: string]: number} = {};
+    CATEGORIES.forEach((category) => {
+      countMap[category.id] = category.indicators.filter((indicator) =>
+        filters.indicators[indicator.id],
+      ).length;
+    });
+    return (categoryId: string): number => {
+      return countMap[categoryId] ?? 0;
+    };
+  }, [filters.indicators]);
+
+  // Handle wheel events to prevent map scrolling when dropdown is open
+  useEffect(() => {
+    if (!isOpen || !dropdownRef.current) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only stop propagation if the event is within the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) {
+        e.stopPropagation();
+      }
+    };
+
+    // Add event listener in capture phase to catch events before map
+    document.addEventListener('wheel', handleWheel, {capture: true});
+
+    return () => {
+      document.removeEventListener('wheel', handleWheel, {capture: true});
+    };
+  }, [isOpen]);
+
+  // Notify parent when overlay state changes (to disable/enable map double-click zoom)
+  useEffect(() => {
+    if (onOverlayStateChange) {
+      onOverlayStateChange(isOpen);
+    }
+  }, [isOpen, onOverlayStateChange]);
+
+  // Close dropdown when zoom drops below high-zoom threshold (zl < 5)
+  useEffect(() => {
+    if (isLowZoom && isOpen) {
+      setIsOpen(false);
+    }
+  }, [isLowZoom, isOpen]);
+
+  // Smooth scroll to category when it's auto-expanded
+  useEffect(() => {
+    if (justExpanded && categoryRefs.current[justExpanded]) {
+      const categoryElement = categoryRefs.current[justExpanded];
+      if (categoryElement) {
+        // Small delay to ensure DOM has updated
+        setTimeout(() => {
+          categoryElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+          });
+        }, 100);
+      }
+      // Clear the justExpanded flag
+      setJustExpanded(null);
+    }
+  }, [justExpanded]);
+
+
+  // Selected indicator count (for message above in state 2)
+  const selectedIndicatorCount = Object.keys(filters.indicators).filter(
+      (id) => filters.indicators[id],
+  ).length;
+
+  // Message above:
+  // State 1 = zoom in to enable,
+  // State 2 = select burdens or selected burdens (n),
+  // State 3 = zoom in to view selection
+  const messageAbove =
+    zoomUiState === 1 ?
+      intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.ZOOM_IN_TO_ENABLE) :
+      zoomUiState === 2 ?
+        (selectedIndicatorCount >= 1 ?
+          intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.SELECTED_BURDENS_COUNT, {count: selectedIndicatorCount}) :
+          intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.SELECT_BURDENS)) :
+        intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.ZOOM_IN_TO_VIEW_SELECTION);
+
+  /**
+   * Shared panel body for both mobile overlay and desktop dropdown.
+   * @return {JSX.Element} Panel content (title, checkboxes, categories, actions).
+   */
+  const renderPanelContent = () => (
+    <>
+      <div className={styles.panelTitle}>
+        {intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.PANEL_TITLE)}
+      </div>
+
+      <label className={styles.mainCheckboxLabel}>
+        <input
+          type="checkbox"
+          checked={filters.identifiedAsDisadvantaged}
+          onChange={(e) => handleIdentifiedAsDisadvantagedChange(e.target.checked)}
+          className={styles.checkbox}
+        />
+        <span>{intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.IDENTIFIED_AS_DISADVANTAGED)}</span>
+      </label>
+
+      <label className={styles.mainCheckboxLabel}>
+        <input
+          type="checkbox"
+          checked={filters.indicators.lowInc || false}
+          onChange={(e) => handleIndicatorChange('lowInc', e.target.checked)}
+          className={styles.checkbox}
+        />
+        <span>{intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.LOW_INCOME_CHECKBOX)}</span>
+      </label>
+
+      <div className={styles.categoriesContainer}>
+        {CATEGORIES.map((category) => (
+          <details
+            key={category.id}
+            ref={(el) => {
+              categoryRefs.current[category.id] = el;
+            }}
+            className={styles.categoryDetails}
+            open={expandedCategories.has(category.id)}
+            onToggle={(e) => e.preventDefault()}
+          >
+            <summary className={styles.categorySummary} tabIndex={-1} onClick={(e) => e.preventDefault()}>
+              <input
+                ref={(el) => {
+                  categoryCheckboxRefs.current[category.id] = el;
+                }}
+                type="checkbox"
+                checked={categoryStates[category.id] || false}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  handleCategoryChange(category.id, e.target.checked);
+                }}
+                className={styles.categoryCheckbox}
+                onClick={(e) => e.stopPropagation()}
+                disabled={mapRegion === 'island_areas' && DISABLED_CATEGORY_IDS_WHEN_ISLAND_AREAS.has(category.id)}
+                aria-label={intl.formatMessage(
+                    LAYER_FILTER_COPY.LAYER_FILTER.CATEGORY_ARIA_LABEL,
+                    {
+                      categoryName: intl.formatMessage(category.nameMessage),
+                      selectedCount: getCategorySelectedCount(category.id),
+                      totalCount: category.indicators.length,
+                    },
+                )}
+                aria-describedby={`category-${category.id}-count`}
+              />
+              <span className={styles.categoryName}>
+                {intl.formatMessage(category.nameMessage)}
+              </span>
+              <span
+                id={`category-${category.id}-count`}
+                className={styles.countBadge}
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {intl.formatMessage(
+                    LAYER_FILTER_COPY.LAYER_FILTER.CATEGORY_COUNT_BADGE,
+                    {
+                      selectedCount: getCategorySelectedCount(category.id),
+                      totalCount: category.indicators.length,
+                    },
+                )}
+              </span>
+            </summary>
+            <div
+              className={styles.indicatorsList}
+              role="group"
+              aria-label={intl.formatMessage(
+                  LAYER_FILTER_COPY.LAYER_FILTER.INDICATORS_GROUP_LABEL,
+                  {categoryName: intl.formatMessage(category.nameMessage)},
+              )}
+            >
+              {category.indicators.map((indicator) => {
+                const labelMessage = getIndicatorLabelMessage(indicator.id);
+                const indicatorLabel = intl.formatMessage(labelMessage);
+                const indicatorDisabled = isIndicatorDisabledForRegion(indicator.id, mapRegion);
+                return (
+                  <label key={indicator.id} className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={filters.indicators[indicator.id] || false}
+                      onChange={(e) => handleIndicatorChange(indicator.id, e.target.checked)}
+                      className={styles.checkbox}
+                      disabled={indicatorDisabled}
+                      aria-label={indicatorLabel}
+                    />
+                    <span>{indicatorLabel}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </details>
+        ))}
+      </div>
+
+      <label className={styles.mainCheckboxLabel}>
+        <input
+          type="checkbox"
+          checked={filters.indicators.tribalLands || false}
+          onChange={(e) => handleIndicatorChange('tribalLands', e.target.checked)}
+          className={styles.checkbox}
+          disabled={mapRegion !== 'nation'}
+        />
+        <span>{intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.TRIBAL_LANDS)}</span>
+      </label>
+
+      <div className={styles.actionButtons}>
+        <Button
+          type="button"
+          outline
+          onClick={handleResetFilters}
+          className={styles.resetButton}
+        >
+          {intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.RESET_FILTERS)}
+        </Button>
+        <Button
+          type="button"
+          onClick={handleApply}
+          className={styles.applyButton}
+        >
+          {intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.APPLY)}
+        </Button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className={styles.layerFilterContainer} data-zoom-ui-state={zoomUiState} data-mobile={isMobile}>
+      <div className={styles.filterHeader}>
+        <div
+          key={zoomUiState}
+          className={`${styles.zoomMessageBanner} ${styles.zoomMessageBannerFadeIn} ${zoomUiState === 2 ?
+            styles.zoomMessageBannerEnabled : ''}`}
+          id="layer-filter-zoom-message-above"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {messageAbove}
+        </div>
+        <button
+          type="button"
+          className={`${styles.layersButton} ${isLowZoom ? styles.layersButtonDisabled : ''}`}
+          disabled={isLowZoom}
+          aria-disabled={isLowZoom}
+          aria-describedby={zoomUiState === 2 || zoomUiState === 3 ?
+            'layer-filter-zoom-message-above layer-filter-zoom-message-below' : 'layer-filter-zoom-message-above'}
+          onClick={() => !isLowZoom && setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-label={intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.LAYERS_BUTTON_ARIA_LABEL)}
+        >
+          {intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.LAYERS_BUTTON)}
+          {!isMobile && <span className={styles.chevron}>{isOpen ? '▲' : '▼'}</span>}
+        </button>
+        {(zoomUiState === 2 || zoomUiState === 3) && (
+          <div
+            className={`${styles.zoomMessageBanner} ${zoomUiState === 2 ? styles.zoomMessageBannerReserveSpace : ''}`}
+            id="layer-filter-zoom-message-below"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            aria-hidden={zoomUiState === 2}
+          >
+            {intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.DISPLAYING_ALL_DISADVANTAGED_TRACT)}
+          </div>
+        )}
+      </div>
+
+      {isOpen && isMobile && typeof document !== 'undefined' && ReactDOM.createPortal(
+          <div
+            ref={dropdownRef}
+            className={styles.fullScreenOverlay}
+            role="dialog"
+            aria-modal="true"
+            aria-label={intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.PANEL_TITLE)}
+          >
+            <div className={styles.fullScreenHeader}>
+              <span className={styles.fullScreenTractCount}>
+                {intl.formatMessage(
+                    LAYER_FILTER_COPY.LAYER_FILTER.TRACT_COUNT_SUMMARY,
+                    {
+                      selectedCount: selectedCount.toLocaleString(),
+                      totalCount: totalCount.toLocaleString(),
+                    },
+                )}
+                {' '}
+                {intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.TRACT_COUNT_SUMMARY_SUFFIX)}
+              </span>
+              <button
+                type="button"
+                className={styles.fullScreenClose}
+                onClick={() => setIsOpen(false)}
+                aria-label={intl.formatMessage(LAYER_FILTER_COPY.LAYER_FILTER.CLOSE_LAYERS)}
+              >
+              ×
+              </button>
+            </div>
+            <div className={styles.fullScreenPanel}>
+              {renderPanelContent()}
+            </div>
+          </div>,
+          document.body,
+      )}
+
+      {isOpen && !isMobile && (
+        <div
+          ref={dropdownRef}
+          className={styles.dropdownPanel}
+        >
+          {renderPanelContent()}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LayerFilter;
+

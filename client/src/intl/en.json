@@ -251,10 +251,6 @@
     "defaultMessage": "<link5>Instructions to Federal agencies on using the CEJST</link5> (.pdf {instructions})",
     "description": "Navigate to the download page. This is sixth download file link"
   },
-  "download.page.files.section.title": {
-    "defaultMessage": "Version {version} file formats",
-    "description": "Navigate to the download page. This is first download file link"
-  },
   "download.page.release.2_0.update.HEADER": {
     "defaultMessage": "Version {release} Release update - {date}",
     "description": "Navigate to the download page. This is first download file link"
@@ -306,6 +302,22 @@
   "download.page.release.2_0.update.UI_SECTION": {
     "defaultMessage": "User Interface Improvements",
     "description": "Navigate to the download page. This is the UI improvements section"
+  },
+  "download.page.release.2_1.update.HEADER": {
+    "defaultMessage": "Version {release} Release update - {date}",
+    "description": "Download page release notes header for version 2.1"
+  },
+  "download.page.release.2_1.update.NEW_IMPROVED_CONTENT_1": {
+    "defaultMessage": "Added the ability to view disadvantaged communities by burdens of interest",
+    "description": "Download page release notes 2.1 content"
+  },
+  "download.page.release.2_1.update.NEW_IMPROVED_SECTION": {
+    "defaultMessage": "New & Improved",
+    "description": "Download page release notes New & Improved section"
+  },
+  "download.page.release.2_1.update.NOTE": {
+    "defaultMessage": "Note: None of the underlying data has changed",
+    "description": "Download page release notes 2.1 data disclaimer"
   },
   "downloads.page.change.log.text": {
     "defaultMessage": "release notes",
@@ -1147,6 +1159,10 @@
     "defaultMessage": "The lands of Federally Recognized Tribes that cover {amount} of this tract and the {numPoints} tribes that are Federally Recognized are also considered disadvantaged.",
     "description": "Navigate to the explore the map page. Click on tract, The Federally Recognized Tribal lands that cover {amount} of this tract and the {numPoints} tribes that are Federally Recognized are also considered disadvantaged."
   },
+  "explore.map.page.side.panel.selected.burdens.summary": {
+    "defaultMessage": "This tract is above the threshold for {x} of the {yBold} selected {y, plural, one {burden} other {burdens}}.",
+    "description": "Side panel when custom indicators are selected; x = count exceeding threshold, y = total selected"
+  },
   "explore.map.page.side.panel.send.feedback.alt.img": {
     "defaultMessage": "Send feedback",
     "description": "Navigate to the explore the map page. When the map is in view, click on the map. The side panel will show a send feedback icon, this is the images alt tag"
@@ -1162,6 +1178,10 @@
   "explore.map.page.side.panel.spacer.and": {
     "defaultMessage": "AND",
     "description": "Navigate to the explore the map page. When the map is in view, click on the map. Click on a category to expand. This is the AND spacer around thresholds."
+  },
+  "explore.map.page.side.panel.tract.contains.tribal.lands": {
+    "defaultMessage": "This tract contains lands of federally recognized tribes.",
+    "description": "Side panel when tribal lands filter is on and tract has tribal land"
   },
   "explore.map.page.side.panel.tribalInfo.landAreaName": {
     "defaultMessage": "Land Area Name:",
@@ -1478,6 +1498,86 @@
   "indicator.categories.work.dev.title": {
     "defaultMessage": "Workforce development",
     "description": "Navigate to the methodology page. Navigate to the category section. This will set the category title"
+  },
+  "layer.filter.apply": {
+    "defaultMessage": "Apply",
+    "description": "Button text to apply the selected filters"
+  },
+  "layer.filter.category.aria.label": {
+    "defaultMessage": "{categoryName}, {selectedCount} of {totalCount} indicators selected",
+    "description": "Accessibility label for category checkbox indicating selection count"
+  },
+  "layer.filter.category.count.badge": {
+    "defaultMessage": "({selectedCount}/{totalCount})",
+    "description": "Count badge showing number of selected indicators in a category"
+  },
+  "layer.filter.close.layers": {
+    "defaultMessage": "Close layers",
+    "description": "Accessibility label for the button that closes the layers panel on mobile"
+  },
+  "layer.filter.displaying.all.disadvantaged.tracts": {
+    "defaultMessage": "Displaying all disadvantaged tracts.",
+    "description": "Status when zoom is below 5 and map shows low-zoom (all disadvantaged) view"
+  },
+  "layer.filter.identified.as.disadvantaged": {
+    "defaultMessage": "Identified as disadvantaged",
+    "description": "Checkbox label for filtering by identified as disadvantaged communities"
+  },
+  "layer.filter.indicators.group.label": {
+    "defaultMessage": "{categoryName} indicators",
+    "description": "Accessibility label for the group of indicators within a category"
+  },
+  "layer.filter.layers.button": {
+    "defaultMessage": "Layers",
+    "description": "Button text to open/close the layers filter panel"
+  },
+  "layer.filter.layers.button.aria.label": {
+    "defaultMessage": "Toggle layers filter panel",
+    "description": "Accessibility label for the layers button describing its action"
+  },
+  "layer.filter.low.income.checkbox": {
+    "defaultMessage": "Low income",
+    "description": "Checkbox label for filtering by low income indicator"
+  },
+  "layer.filter.panel.title": {
+    "defaultMessage": "Categories of burden",
+    "description": "Title of the layer filter dropdown panel"
+  },
+  "layer.filter.reset.filters": {
+    "defaultMessage": "Reset filters",
+    "description": "Button text to reset all filters to default state"
+  },
+  "layer.filter.select.burdens": {
+    "defaultMessage": "select burdens",
+    "description": "Message when map zoom is 5 or above; prompt to select burden indicators"
+  },
+  "layer.filter.selected.burdens.count": {
+    "defaultMessage": "selected burdens ({count})",
+    "description": "Message when map zoom is 5 or above and one or more burden indicators are selected"
+  },
+  "layer.filter.tract.count.aria.label": {
+    "defaultMessage": "Tracts matching current filters: {selectedCount} of {totalCount}",
+    "description": "Accessibility label for the tract count summary"
+  },
+  "layer.filter.tract.count.summary": {
+    "defaultMessage": "{selectedCount} of {totalCount}",
+    "description": "Tract count summary displayed at bottom-right of map: selected tracts of total tracts"
+  },
+  "layer.filter.tract.count.summary.suffix": {
+    "defaultMessage": "disadvantaged tracts",
+    "description": "Suffix for tract count in mobile overlay header (e.g. \"X of Y disadvantaged tracts\")"
+  },
+  "layer.filter.tribal.lands": {
+    "defaultMessage": "Lands of federally recognized tribes",
+    "description": "Checkbox label for filtering by tribal lands"
+  },
+  "layer.filter.zoom.in.to.enable": {
+    "defaultMessage": "zoom in to enable",
+    "description": "Message when map zoom is below 5 and only default indicator is selected"
+  },
+  "layer.filter.zoom.in.to.view.selection": {
+    "defaultMessage": "Zoom in to view selection.",
+    "description": "Message when map zoom is below 5 and user has other indicators selected"
   },
   "map.territoryFocus.focusOn": {
     "defaultMessage": "Focus on {territory}",

@@ -17,6 +17,10 @@ import TractPrioritization from "../TractPrioritization";
 // Styles and constants:
 import * as constants from "../../data/constants";
 import * as EXPLORE_COPY from "../../data/copy/explore";
+import {getIndicatorById, INDICATOR_REGISTRY} from "../../data/indicators/registry";
+import type {LayerFilters} from "../LayerFilter";
+import {getThresholdPropertyName} from "../../utils/indicatorRegion";
+import {sidePanelStateToMapRegion} from "../../utils/mapRegion";
 import * as styles from "./areaDetail.module.scss";
 
 // @ts-ignore
@@ -25,6 +29,8 @@ import IslandCopy from "../IslandCopy/IslandCopy";
 interface IAreaDetailProps {
   properties: constants.J40Properties;
   hash: string[];
+  /** LayerFilter state; when provided, used to filter content and show selected-burdens summary. */
+  layerFilters?: LayerFilters;
 }
 
 /**
@@ -50,6 +56,7 @@ export type indicatorType = "percentile" | "percent" | "boolean";
  *  threshold: a custom value of threshold for certain indicators
  *  */
 export interface indicatorInfo {
+  id?: string; // Canonical indicator ID (for future filtering)
   label: string;
   description: string;
   type: indicatorType;
@@ -120,14 +127,60 @@ export const getTribalPercentValue = (tribalPercentRaw: number) => {
 };
 
 /**
+ * Map AreaDetail category IDs to registry/LayerFilter category IDs (for filtering by LayerFilter selection).
+ */
+const AREA_DETAIL_TO_REGISTRY_CATEGORY: {[key: string]: string} = {
+  "climate-change": "climate",
+  "clean-energy": "energy",
+  "health-burdens": "health",
+  "sustain-house": "housing",
+  "leg-pollute": "pollution",
+  "clean-transport": "transportation",
+  "clean-water": "water",
+  "work-dev": "workforce",
+};
+
+/**
  * This is the main component. It will render the entire side panel and show the details
  * of the area/feature that is selected.
  *
  * @param {IAreaDetailProps} {}
  * @return {void}
  */
-const AreaDetail = ({properties}: IAreaDetailProps) => {
+const AreaDetail = ({properties, layerFilters}: IAreaDetailProps) => {
   const intl = useIntl();
+
+  /**
+   * "ID as disadv only" = show full panel (current behavior).
+   * "Custom selection" = show only selected indicators and X-of-Y summary.
+   */
+  const useCustomIndicatorView = Boolean(
+      layerFilters &&
+    !(
+      layerFilters.identifiedAsDisadvantaged &&
+      Object.keys(layerFilters.indicators).length === 0
+    ),
+  );
+
+  /**
+   * Selected burden IDs (registry only; excludes e.g. tribalLands).
+   */
+  const selectedBurdenIds =
+    useCustomIndicatorView && layerFilters ?
+      Object.keys(layerFilters.indicators).filter((id) =>
+        Object.prototype.hasOwnProperty.call(INDICATOR_REGISTRY, id),
+      ) :
+      [];
+
+  const selectedBurdenCountY = selectedBurdenIds.length;
+
+  const tribalLandsFilterOn = Boolean(layerFilters?.indicators?.tribalLands);
+  const tractHasTribalLand = Boolean(
+      properties &&
+      typeof properties[constants.TRIBAL_AREAS_PERCENTAGE] === "number" &&
+      properties[constants.TRIBAL_AREAS_PERCENTAGE] > 0,
+  );
+  const showTribalLandsMessage = tribalLandsFilterOn && tractHasTribalLand;
 
   /**
    * Set the indicators for a given category.
@@ -140,6 +193,7 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
     if (cat) cat.indicators = indicators;
     else throw new Error("Unknown side panel category ID " + id);
   };
+
 
   // console.log the properties of the census that is selected:
   console.log(
@@ -188,6 +242,7 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
     constants.MISSING_DATA_STRING;
 
   const sidePanelState = properties[constants.SIDE_PANEL_STATE];
+  const mapRegionForIndicator = sidePanelStateToMapRegion(sidePanelState);
   const percentTractTribal =
     properties[constants.TRIBAL_AREAS_PERCENTAGE] >= 0 ?
       parseFloat(
@@ -269,76 +324,27 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
   };
 
   /**
-   * The workforce development category has some indicators who's disadvantaged boolean
-   * will vary depending on which territory is selected. This function allows us to change
-   * the boolean of workforce development indicators depending on which territory was selected
-   *
-   * @param {string} indicatorName
-   * @return {void}
+   * Workforce (and other) indicators use region-aware threshold property names (see indicatorRegion).
+   * @param {string} indicatorName - Canonical indicator ID
+   * @return {boolean | null} Threshold value when property present, null when missing
    */
   const getWorkForceIndicatorIsDisadv = (indicatorName: string) => {
-    if (sidePanelState === constants.SIDE_PANEL_STATE_VALUES.ISLAND_AREAS) {
-      if (indicatorName === "lowMedInc") {
-        return properties.hasOwnProperty(
-            constants.IS_EXCEEDS_THRESH_FOR_ISLAND_AREA_LOW_MEDIAN_INCOME,
-        ) ?
-          properties[
-              constants.IS_EXCEEDS_THRESH_FOR_ISLAND_AREA_LOW_MEDIAN_INCOME
-          ] :
-          null;
-      }
-      if (indicatorName === "unemploy") {
-        return properties.hasOwnProperty(
-            constants.IS_EXCEEDS_THRESH_FOR_ISLAND_AREA_UNEMPLOYMENT,
-        ) ?
-          properties[constants.IS_EXCEEDS_THRESH_FOR_ISLAND_AREA_UNEMPLOYMENT] :
-          null;
-      }
-      if (indicatorName === "poverty") {
-        return properties.hasOwnProperty(
-            constants.IS_EXCEEDS_THRESH_FOR_ISLAND_AREA_BELOW_100_POVERTY,
-        ) ?
-          properties[
-              constants.IS_EXCEEDS_THRESH_FOR_ISLAND_AREA_BELOW_100_POVERTY
-          ] :
-          null;
-      }
-      if (indicatorName === "highSchool") {
-        return properties.hasOwnProperty(constants.ISLAND_AREA_LOW_HS_EDU) ?
-          properties[constants.ISLAND_AREA_LOW_HS_EDU] :
-          null;
-      }
-    }
-
-    if (indicatorName === "lowMedInc") {
-      return properties.hasOwnProperty(
-          constants.IS_EXCEEDS_THRESH_FOR_LOW_MEDIAN_INCOME,
-      ) ?
-        properties[constants.IS_EXCEEDS_THRESH_FOR_LOW_MEDIAN_INCOME] :
-        null;
-    }
-    if (indicatorName === "unemploy") {
-      return properties.hasOwnProperty(
-          constants.IS_EXCEEDS_THRESH_FOR_UNEMPLOYMENT,
-      ) ?
-        properties[constants.IS_EXCEEDS_THRESH_FOR_UNEMPLOYMENT] :
-        null;
-    }
-    if (indicatorName === "poverty") {
-      return properties.hasOwnProperty(
-          constants.IS_EXCEEDS_THRESH_FOR_BELOW_100_POVERTY,
-      ) ?
-        properties[constants.IS_EXCEEDS_THRESH_FOR_BELOW_100_POVERTY] :
-        null;
-    }
-    if (indicatorName === "highSchool") {
-      return properties.hasOwnProperty(
-          constants.IS_LOW_HS_EDUCATION_LOW_HIGHER_ED_PRIORITIZED,
-      ) ?
-        properties[constants.IS_LOW_HS_EDUCATION_LOW_HIGHER_ED_PRIORITIZED] :
-        null;
-    }
+    const prop = getThresholdPropertyName(indicatorName, mapRegionForIndicator);
+    if (!prop) return null;
+    return properties.hasOwnProperty(prop) ? properties[prop] : null;
   };
+
+  /**
+   * Count of selected burdens for which this tract exceeds the threshold (*_ET). Used for X-of-Y summary.
+   * Uses region-aware threshold property names (Island Areas: IA_*, etc.).
+   */
+  const exceedCountX =
+    useCustomIndicatorView && properties ?
+      selectedBurdenIds.filter((id) => {
+        const prop = getThresholdPropertyName(id, mapRegionForIndicator);
+        return prop ? Boolean(properties[prop]) : false;
+      }).length :
+      0;
 
   /**
    * Define each indicator in the side panel with constants from copy file (for intl)
@@ -347,82 +353,96 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
    */
 
   // Climate category
+  const expAgLossDef = getIndicatorById('expAgLoss');
   const expAgLoss: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.EXP_AG_LOSS),
+    id: expAgLossDef.id,
+    label: intl.formatMessage(expAgLossDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.EXP_AG_LOSS,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.EXP_AGRICULTURE_LOSS_PERCENTILE) ?
-      properties[constants.EXP_AGRICULTURE_LOSS_PERCENTILE] :
+    value: expAgLossDef.percentilePropertyName && properties.hasOwnProperty(expAgLossDef.percentilePropertyName) ?
+      properties[expAgLossDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_EXP_AGR_LOSS] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_EXP_AGR_LOSS] :
+    isDisadvagtaged: properties[expAgLossDef.thresholdPropertyName] ?
+      properties[expAgLossDef.thresholdPropertyName] :
       null,
   };
+  const expBldLossDef = getIndicatorById('expBldLoss');
   const expBldLoss: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.EXP_BLD_LOSS),
+    id: expBldLossDef.id,
+    label: intl.formatMessage(expBldLossDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.EXP_BLD_LOSS,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.EXP_BUILDING_LOSS_PERCENTILE) ?
-      properties[constants.EXP_BUILDING_LOSS_PERCENTILE] :
+    value: expBldLossDef.percentilePropertyName && properties.hasOwnProperty(expBldLossDef.percentilePropertyName) ?
+      properties[expBldLossDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_EXP_BLD_LOSS] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_EXP_BLD_LOSS] :
+    isDisadvagtaged: properties[expBldLossDef.thresholdPropertyName] ?
+      properties[expBldLossDef.thresholdPropertyName] :
       null,
   };
+  const expPopLossDef = getIndicatorById('expPopLoss');
   const expPopLoss: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.EXP_POP_LOSS),
+    id: expPopLossDef.id,
+    label: intl.formatMessage(expPopLossDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.EXP_POP_LOSS,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.EXP_POPULATION_LOSS_PERCENTILE) ?
-      properties[constants.EXP_POPULATION_LOSS_PERCENTILE] :
+    value: expPopLossDef.percentilePropertyName && properties.hasOwnProperty(expPopLossDef.percentilePropertyName) ?
+      properties[expPopLossDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_EXP_POP_LOSS] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_EXP_POP_LOSS] :
+    isDisadvagtaged: properties[expPopLossDef.thresholdPropertyName] ?
+      properties[expPopLossDef.thresholdPropertyName] :
       null,
   };
+  const floodingDef = getIndicatorById('flooding');
   const flooding: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.FLOODING),
+    id: floodingDef.id,
+    label: intl.formatMessage(floodingDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.FLOODING,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.FLOODING_PERCENTILE) ?
-      properties[constants.FLOODING_PERCENTILE] :
+    value: floodingDef.percentilePropertyName && properties.hasOwnProperty(floodingDef.percentilePropertyName) ?
+      properties[floodingDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FLOODING] ?
-      properties[constants.IS_EXCEEDS_THRESH_FLOODING] :
+    isDisadvagtaged: properties[floodingDef.thresholdPropertyName] ?
+      properties[floodingDef.thresholdPropertyName] :
       null,
   };
+  const wildfireDef = getIndicatorById('wildfire');
   const wildfire: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.WILDFIRE),
+    id: wildfireDef.id,
+    label: intl.formatMessage(wildfireDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.WILDFIRE,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.WILDFIRE_PERCENTILE) ?
-      properties[constants.WILDFIRE_PERCENTILE] :
+    value: wildfireDef.percentilePropertyName && properties.hasOwnProperty(wildfireDef.percentilePropertyName) ?
+      properties[wildfireDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_WILDFIRE] ?
-      properties[constants.IS_EXCEEDS_THRESH_WILDFIRE] :
+    isDisadvagtaged: properties[wildfireDef.thresholdPropertyName] ?
+      properties[wildfireDef.thresholdPropertyName] :
       null,
   };
+  // Shared socioeconomic indicator (appears in all categories)
+  const lowIncDef = getIndicatorById('lowInc');
   const lowInc: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LOW_INCOME),
+    id: lowIncDef.id,
+    label: intl.formatMessage(lowIncDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LOW_INCOME,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.POVERTY_BELOW_200_PERCENTILE) ?
-      properties[constants.POVERTY_BELOW_200_PERCENTILE] :
+    value: lowIncDef.percentilePropertyName &&
+      properties.hasOwnProperty(lowIncDef.percentilePropertyName) ?
+      properties[lowIncDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_FEDERAL_POVERTY_LEVEL_200] ?
-      properties[constants.IS_FEDERAL_POVERTY_LEVEL_200] :
+    isDisadvagtaged: properties[lowIncDef.thresholdPropertyName] ?
+      properties[lowIncDef.thresholdPropertyName] :
       null,
     threshold: 65,
   };
@@ -438,196 +458,206 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
   // };
 
   // Energy category
+  const energyCostDef = getIndicatorById('energyCost');
   const energyCost: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.ENERGY_COST),
+    id: energyCostDef.id,
+    label: intl.formatMessage(energyCostDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.ENERGY_COST,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.ENERGY_PERCENTILE) ?
-      properties[constants.ENERGY_PERCENTILE] :
+    value: energyCostDef.percentilePropertyName && properties.hasOwnProperty(energyCostDef.percentilePropertyName) ?
+      properties[energyCostDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_ENERGY_BURDEN] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_ENERGY_BURDEN] :
+    isDisadvagtaged: properties[energyCostDef.thresholdPropertyName] ?
+      properties[energyCostDef.thresholdPropertyName] :
       null,
   };
+  const pm25Def = getIndicatorById('pm25');
   const pm25: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.PM_2_5),
+    id: pm25Def.id,
+    label: intl.formatMessage(pm25Def.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.PM_2_5,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.PM25_PERCENTILE) ?
-      properties[constants.PM25_PERCENTILE] :
+    value: pm25Def.percentilePropertyName && properties.hasOwnProperty(pm25Def.percentilePropertyName) ?
+      properties[pm25Def.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_PM25] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_PM25] :
+    isDisadvagtaged: properties[pm25Def.thresholdPropertyName] ?
+      properties[pm25Def.thresholdPropertyName] :
       null,
   };
 
   // Health category
+  const asthmaDef = getIndicatorById('asthma');
   const asthma: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.ASTHMA),
+    id: asthmaDef.id,
+    label: intl.formatMessage(asthmaDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.ASTHMA,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.ASTHMA_PERCENTILE) ?
-      properties[constants.ASTHMA_PERCENTILE] :
+    value: asthmaDef.percentilePropertyName && properties.hasOwnProperty(asthmaDef.percentilePropertyName) ?
+      properties[asthmaDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_ASTHMA] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_ASTHMA] :
+    isDisadvagtaged: properties[asthmaDef.thresholdPropertyName] ?
+      properties[asthmaDef.thresholdPropertyName] :
       null,
   };
+  const diabetesDef = getIndicatorById('diabetes');
   const diabetes: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.DIABETES),
+    id: diabetesDef.id,
+    label: intl.formatMessage(diabetesDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.DIABETES,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.DIABETES_PERCENTILE) ?
-      properties[constants.DIABETES_PERCENTILE] :
+    value: diabetesDef.percentilePropertyName && properties.hasOwnProperty(diabetesDef.percentilePropertyName) ?
+      properties[diabetesDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_DIABETES] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_DIABETES] :
+    isDisadvagtaged: properties[diabetesDef.thresholdPropertyName] ?
+      properties[diabetesDef.thresholdPropertyName] :
       null,
   };
+  const heartDiseaseDef = getIndicatorById('heartDisease');
   const heartDisease: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.HEART_DISEASE),
+    id: heartDiseaseDef.id,
+    label: intl.formatMessage(heartDiseaseDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.HEART_DISEASE,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.HEART_PERCENTILE) ?
-      properties[constants.HEART_PERCENTILE] :
+    value: heartDiseaseDef.percentilePropertyName && properties.hasOwnProperty(heartDiseaseDef.percentilePropertyName) ?
+      properties[heartDiseaseDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_HEART_DISEASE] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_HEART_DISEASE] :
+    isDisadvagtaged: properties[heartDiseaseDef.thresholdPropertyName] ?
+      properties[heartDiseaseDef.thresholdPropertyName] :
       null,
   };
+  const lifeExpectDef = getIndicatorById('lifeExpect');
   const lifeExpect: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LIFE_EXPECT),
+    id: lifeExpectDef.id,
+    label: intl.formatMessage(lifeExpectDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LOW_LIFE_EXPECT,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.LIFE_PERCENTILE) ?
-      properties[constants.LIFE_PERCENTILE] :
+    value: lifeExpectDef.percentilePropertyName && properties.hasOwnProperty(lifeExpectDef.percentilePropertyName) ?
+      properties[lifeExpectDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_LOW_LIFE_EXP] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_LOW_LIFE_EXP] :
+    isDisadvagtaged: properties[lifeExpectDef.thresholdPropertyName] ?
+      properties[lifeExpectDef.thresholdPropertyName] :
       null,
   };
 
   // Housing category
+  // NOTE: historicUnderinvest is a boolean indicator with special value checking logic
+  const historicUnderinvestDef = getIndicatorById('historicUnderinvest');
   const historicUnderinvest: indicatorInfo = {
-    label: intl.formatMessage(
-        EXPLORE_COPY.SIDE_PANEL_INDICATORS.HIST_UNDERINVEST,
-    ),
+    id: historicUnderinvestDef.id,
+    label: intl.formatMessage(historicUnderinvestDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.HIST_UNDERINVEST,
     ),
     type: "boolean",
-    value: properties.hasOwnProperty(
-        constants.HISTORIC_UNDERINVESTMENT_EXCEED_THRESH,
-    ) ?
-      properties[constants.HISTORIC_UNDERINVESTMENT_EXCEED_THRESH] ===
+    value: properties.hasOwnProperty(historicUnderinvestDef.thresholdPropertyName) ?
+      properties[historicUnderinvestDef.thresholdPropertyName] ===
         constants.HISTORIC_UNDERINVESTMENT_RAW_YES ?
         true :
         false :
       null,
     isDisadvagtaged:
-      properties.hasOwnProperty(
-          constants.HISTORIC_UNDERINVESTMENT_EXCEED_THRESH,
-      ) &&
-      properties[constants.HISTORIC_UNDERINVESTMENT_EXCEED_THRESH] ===
+      properties.hasOwnProperty(historicUnderinvestDef.thresholdPropertyName) &&
+      properties[historicUnderinvestDef.thresholdPropertyName] ===
         constants.HISTORIC_UNDERINVESTMENT_RAW_YES ?
-        true :
-        false,
+      true :
+      false,
   };
+  const houseCostDef = getIndicatorById('houseCost');
   const houseCost: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.HOUSE_COST),
+    id: houseCostDef.id,
+    label: intl.formatMessage(houseCostDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.HOUSE_COST,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(
-        constants.HOUSING_BURDEN_PROPERTY_PERCENTILE,
-    ) ?
-      properties[constants.HOUSING_BURDEN_PROPERTY_PERCENTILE] :
+    value: houseCostDef.percentilePropertyName && properties.hasOwnProperty(houseCostDef.percentilePropertyName) ?
+      properties[houseCostDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_HOUSE_BURDEN] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_HOUSE_BURDEN] :
+    isDisadvagtaged: properties[houseCostDef.thresholdPropertyName] ?
+      properties[houseCostDef.thresholdPropertyName] :
       null,
   };
+  const lackGreenSpaceDef = getIndicatorById('lackGreenSpace');
   const lackGreenSpace: indicatorInfo = {
-    label: intl.formatMessage(
-        EXPLORE_COPY.SIDE_PANEL_INDICATORS.LACK_GREEN_SPACE,
-    ),
+    id: lackGreenSpaceDef.id,
+    label: intl.formatMessage(lackGreenSpaceDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LACK_GREEN_SPACE,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.IMPERVIOUS_PERCENTILE) ?
-      properties[constants.IMPERVIOUS_PERCENTILE] :
+    value: lackGreenSpaceDef.percentilePropertyName &&
+      properties.hasOwnProperty(lackGreenSpaceDef.percentilePropertyName) ?
+      properties[lackGreenSpaceDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_IMPERVIOUS] ?
-      properties[constants.IS_EXCEEDS_THRESH_IMPERVIOUS] :
+    isDisadvagtaged: properties[lackGreenSpaceDef.thresholdPropertyName] ?
+      properties[lackGreenSpaceDef.thresholdPropertyName] :
       null,
   };
+  const lackPlumbingDef = getIndicatorById('lackPlumbing');
   const lackPlumbing: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LACK_PLUMBING),
+    id: lackPlumbingDef.id,
+    label: intl.formatMessage(lackPlumbingDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LACK_PLUMBING,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.KITCHEN_PLUMB_PERCENTILE) ?
-      properties[constants.KITCHEN_PLUMB_PERCENTILE] :
+    value: lackPlumbingDef.percentilePropertyName && properties.hasOwnProperty(lackPlumbingDef.percentilePropertyName) ?
+      properties[lackPlumbingDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_KITCHEN_PLUMB] ?
-      properties[constants.IS_EXCEEDS_THRESH_KITCHEN_PLUMB] :
+    isDisadvagtaged: properties[lackPlumbingDef.thresholdPropertyName] ?
+      properties[lackPlumbingDef.thresholdPropertyName] :
       null,
   };
+  const leadPaintDef = getIndicatorById('leadPaint');
   const leadPaint: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LEAD_PAINT),
+    id: leadPaintDef.id,
+    label: intl.formatMessage(leadPaintDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LEAD_PAINT,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.LEAD_PAINT_PERCENTILE) ?
-      properties[constants.LEAD_PAINT_PERCENTILE] :
+    value: leadPaintDef.percentilePropertyName && properties.hasOwnProperty(leadPaintDef.percentilePropertyName) ?
+      properties[leadPaintDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[
-        constants.IS_EXCEEDS_THRESH_FOR_LEAD_PAINT_AND_MEDIAN_HOME_VAL
-    ] ?
-      properties[
-          constants.IS_EXCEEDS_THRESH_FOR_LEAD_PAINT_AND_MEDIAN_HOME_VAL
-      ] :
+    isDisadvagtaged: properties[leadPaintDef.thresholdPropertyName] ?
+      properties[leadPaintDef.thresholdPropertyName] :
       null,
   };
 
   // Pollution categeory
+  const abandonMinesDef = getIndicatorById('abandonMines');
   const abandonMines: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.ABANDON_MINES),
+    id: abandonMinesDef.id,
+    label: intl.formatMessage(abandonMinesDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.ABANDON_MINES,
     ),
     type: "boolean",
-    value: properties.hasOwnProperty(
-        constants.ABANDON_LAND_MINES_EXCEEDS_THRESH,
-    ) ?
-      properties[constants.ABANDON_LAND_MINES_EXCEEDS_THRESH] :
+    value: properties.hasOwnProperty(abandonMinesDef.thresholdPropertyName) ?
+      properties[abandonMinesDef.thresholdPropertyName] :
       null,
-    isDisadvagtaged: properties.hasOwnProperty(
-        constants.ABANDON_LAND_MINES_EXCEEDS_THRESH,
-    ) ?
-      properties[constants.ABANDON_LAND_MINES_EXCEEDS_THRESH] :
+    isDisadvagtaged: properties.hasOwnProperty(abandonMinesDef.thresholdPropertyName) ?
+      properties[abandonMinesDef.thresholdPropertyName] :
       null,
   };
+  // NOTE: formerDefSites is a boolean indicator with special value checking logic
+  // Uses FORMER_DEF_SITES_RAW_VALUE for value (not thresholdPropertyName)
+  const formerDefSitesDef = getIndicatorById('formerDefSites');
   const formerDefSites: indicatorInfo = {
-    label: intl.formatMessage(
-        EXPLORE_COPY.SIDE_PANEL_INDICATORS.FORMER_DEF_SITES,
-    ),
+    id: formerDefSitesDef.id,
+    label: intl.formatMessage(formerDefSitesDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.FORMER_DEF_SITES,
     ),
@@ -639,143 +669,165 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
         true :
         false :
       null,
-    isDisadvagtaged: properties.hasOwnProperty(
-        constants.FORMER_DEF_SITES_EXCEEDS_THRESH,
-    ) ?
-      properties[constants.FORMER_DEF_SITES_EXCEEDS_THRESH] :
+    isDisadvagtaged: properties.hasOwnProperty(formerDefSitesDef.thresholdPropertyName) ?
+      properties[formerDefSitesDef.thresholdPropertyName] :
       null,
   };
+  const proxHazDef = getIndicatorById('proxHaz');
   const proxHaz: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.PROX_HAZ),
+    id: proxHazDef.id,
+    label: intl.formatMessage(proxHazDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.PROX_HAZ,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.PROXIMITY_TSDF_SITES_PERCENTILE) ?
-      properties[constants.PROXIMITY_TSDF_SITES_PERCENTILE] :
+    value: proxHazDef.percentilePropertyName &&
+      properties.hasOwnProperty(proxHazDef.percentilePropertyName) ?
+      properties[proxHazDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_HAZARD_WASTE] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_HAZARD_WASTE] :
+    isDisadvagtaged: properties[proxHazDef.thresholdPropertyName] ?
+      properties[proxHazDef.thresholdPropertyName] :
       null,
   };
+  const proxRMPDef = getIndicatorById('proxRMP');
   const proxRMP: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.PROX_RMP),
+    id: proxRMPDef.id,
+    label: intl.formatMessage(proxRMPDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.PROX_RMP,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.PROXIMITY_RMP_SITES_PERCENTILE) ?
-      properties[constants.PROXIMITY_RMP_SITES_PERCENTILE] :
+    value: proxRMPDef.percentilePropertyName &&
+      properties.hasOwnProperty(proxRMPDef.percentilePropertyName) ?
+      properties[proxRMPDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_RMP] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_RMP] :
+    isDisadvagtaged: properties[proxRMPDef.thresholdPropertyName] ?
+      properties[proxRMPDef.thresholdPropertyName] :
       null,
   };
+  const proxNPLDef = getIndicatorById('proxNPL');
   const proxNPL: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.PROX_NPL),
+    id: proxNPLDef.id,
+    label: intl.formatMessage(proxNPLDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.PROX_NPL,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.PROXIMITY_NPL_SITES_PERCENTILE) ?
-      properties[constants.PROXIMITY_NPL_SITES_PERCENTILE] :
+    value: proxNPLDef.percentilePropertyName &&
+      properties.hasOwnProperty(proxNPLDef.percentilePropertyName) ?
+      properties[proxNPLDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_SUPERFUND] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_SUPERFUND] :
+    isDisadvagtaged: properties[proxNPLDef.thresholdPropertyName] ?
+      properties[proxNPLDef.thresholdPropertyName] :
       null,
   };
 
   // Transpotation category
+  const dieselPartMatterDef = getIndicatorById('dieselPartMatter');
   const dieselPartMatter: indicatorInfo = {
-    label: intl.formatMessage(
-        EXPLORE_COPY.SIDE_PANEL_INDICATORS.DIESEL_PARTICULATE_MATTER,
-    ),
+    id: dieselPartMatterDef.id,
+    label: intl.formatMessage(dieselPartMatterDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.DIESEL_PARTICULATE_MATTER,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.DIESEL_MATTER_PERCENTILE) ?
-      properties[constants.DIESEL_MATTER_PERCENTILE] :
+    value: dieselPartMatterDef.percentilePropertyName &&
+      properties.hasOwnProperty(dieselPartMatterDef.percentilePropertyName) ?
+      properties[dieselPartMatterDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_DIESEL_PM] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_DIESEL_PM] :
+    isDisadvagtaged: properties[dieselPartMatterDef.thresholdPropertyName] ?
+      properties[dieselPartMatterDef.thresholdPropertyName] :
       null,
   };
+  const barrierTransportDef = getIndicatorById('barrierTransport');
   const barrierTransport: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.BARRIER_TRANS),
+    id: barrierTransportDef.id,
+    label: intl.formatMessage(barrierTransportDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.BARRIER_TRANS,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.TRAVEL_DISADV_PERCENTILE) ?
-      properties[constants.TRAVEL_DISADV_PERCENTILE] :
+    value: barrierTransportDef.percentilePropertyName &&
+      properties.hasOwnProperty(barrierTransportDef.percentilePropertyName) ?
+      properties[barrierTransportDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_TRAVEL_DISADV] ?
-      properties[constants.IS_EXCEEDS_THRESH_TRAVEL_DISADV] :
+    isDisadvagtaged: properties[barrierTransportDef.thresholdPropertyName] ?
+      properties[barrierTransportDef.thresholdPropertyName] :
       null,
   };
+  const trafficVolumeDef = getIndicatorById('trafficVolume');
   const trafficVolume: indicatorInfo = {
-    label: intl.formatMessage(
-        EXPLORE_COPY.SIDE_PANEL_INDICATORS.TRAFFIC_VOLUME,
-    ),
+    id: trafficVolumeDef.id,
+    label: intl.formatMessage(trafficVolumeDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.TRAFFIC_VOLUME,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.TRAFFIC_PERCENTILE) ?
-      properties[constants.TRAFFIC_PERCENTILE] :
+    value: trafficVolumeDef.percentilePropertyName &&
+      properties.hasOwnProperty(trafficVolumeDef.percentilePropertyName) ?
+      properties[trafficVolumeDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_TRAFFIC_PROX] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_TRAFFIC_PROX] :
+    isDisadvagtaged: properties[trafficVolumeDef.thresholdPropertyName] ?
+      properties[trafficVolumeDef.thresholdPropertyName] :
       null,
   };
 
   // Water category
+  const leakyTanksDef = getIndicatorById('leakyTanks');
   const leakyTanks: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LEAKY_TANKS),
+    id: leakyTanksDef.id,
+    label: intl.formatMessage(leakyTanksDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LEAKY_TANKS,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.LEAKY_UNDER_PERCENTILE) ?
-      properties[constants.LEAKY_UNDER_PERCENTILE] :
+    value: leakyTanksDef.percentilePropertyName &&
+      properties.hasOwnProperty(leakyTanksDef.percentilePropertyName) ?
+      properties[leakyTanksDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_LEAKY_UNDER] ?
-      properties[constants.IS_EXCEEDS_THRESH_LEAKY_UNDER] :
+    isDisadvagtaged: properties[leakyTanksDef.thresholdPropertyName] ?
+      properties[leakyTanksDef.thresholdPropertyName] :
       null,
   };
+  const wasteWaterDef = getIndicatorById('wasteWater');
   const wasteWater: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.WASTE_WATER),
+    id: wasteWaterDef.id,
+    label: intl.formatMessage(wasteWaterDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.WASTE_WATER,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(constants.WASTEWATER_PERCENTILE) ?
-      properties[constants.WASTEWATER_PERCENTILE] :
+    value: wasteWaterDef.percentilePropertyName &&
+      properties.hasOwnProperty(wasteWaterDef.percentilePropertyName) ?
+      properties[wasteWaterDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_WASTEWATER] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_WASTEWATER] :
+    isDisadvagtaged: properties[wasteWaterDef.thresholdPropertyName] ?
+      properties[wasteWaterDef.thresholdPropertyName] :
       null,
   };
 
   // Workforce dev category
+  const lingIsoDef = getIndicatorById('lingIso');
   const lingIso: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LING_ISO),
+    id: lingIsoDef.id,
+    label: intl.formatMessage(lingIsoDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LING_ISO,
     ),
     type: "percentile",
-    value: properties.hasOwnProperty(
-        constants.LINGUISTIC_ISOLATION_PROPERTY_PERCENTILE,
-    ) ?
-      properties[constants.LINGUISTIC_ISOLATION_PROPERTY_PERCENTILE] :
+    value: lingIsoDef.percentilePropertyName &&
+      properties.hasOwnProperty(lingIsoDef.percentilePropertyName) ?
+      properties[lingIsoDef.percentilePropertyName] :
       null,
-    isDisadvagtaged: properties[constants.IS_EXCEEDS_THRESH_FOR_LINGUISITIC_ISO] ?
-      properties[constants.IS_EXCEEDS_THRESH_FOR_LINGUISITIC_ISO] :
+    isDisadvagtaged: properties[lingIsoDef.thresholdPropertyName] ?
+      properties[lingIsoDef.thresholdPropertyName] :
       null,
   };
+  // NOTE: lowMedInc uses special territory-specific logic via getWorkForceIndicatorValue
+  const lowMedIncDef = getIndicatorById('lowMedInc');
   const lowMedInc: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.LOW_MED_INC),
+    id: lowMedIncDef.id,
+    label: intl.formatMessage(lowMedIncDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.LOW_MED_INCOME,
     ),
@@ -783,8 +835,11 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
     value: getWorkForceIndicatorValue("lowMedInc"),
     isDisadvagtaged: getWorkForceIndicatorIsDisadv("lowMedInc"),
   };
+  // NOTE: unemploy uses special territory-specific logic via getWorkForceIndicatorValue
+  const unemployDef = getIndicatorById('unemploy');
   const unemploy: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.UNEMPLOY),
+    id: unemployDef.id,
+    label: intl.formatMessage(unemployDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.UNEMPLOY,
     ),
@@ -792,8 +847,11 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
     value: getWorkForceIndicatorValue("unemploy"),
     isDisadvagtaged: getWorkForceIndicatorIsDisadv("unemploy"),
   };
+  // NOTE: poverty uses special territory-specific logic via getWorkForceIndicatorValue
+  const povertyDef = getIndicatorById('poverty');
   const poverty: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.POVERTY),
+    id: povertyDef.id,
+    label: intl.formatMessage(povertyDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.POVERTY,
     ),
@@ -801,8 +859,12 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
     value: getWorkForceIndicatorValue("poverty"),
     isDisadvagtaged: getWorkForceIndicatorIsDisadv("poverty"),
   };
+  // NOTE: highSchool uses special territory-specific logic via getWorkForceIndicatorValue
+  // Also note: type is "percent" not "percentile"
+  const highSchoolDef = getIndicatorById('highSchool');
   const highSchool: indicatorInfo = {
-    label: intl.formatMessage(EXPLORE_COPY.SIDE_PANEL_INDICATORS.HIGH_SCL),
+    id: highSchoolDef.id,
+    label: intl.formatMessage(highSchoolDef.i18nKey),
     description: intl.formatMessage(
         EXPLORE_COPY.SIDE_PANEL_INDICATOR_DESCRIPTION.HIGH_SKL,
     ),
@@ -1020,6 +1082,40 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
     categories[0].indicators = [lowMedInc, unemploy, poverty];
   }
 
+  // Custom view: show only selected categories/indicators; if none selected, show none.
+  if (useCustomIndicatorView) {
+    // Registry category ids that have at least one selected indicator (e.g. climate, health).
+    const selectedRegistryCategoryIds = new Set(
+        selectedBurdenIds
+            .map((id) => INDICATOR_REGISTRY[id]?.category)
+            .filter(Boolean),
+    );
+    categories = categories
+        // Keep only AreaDetail categories whose registry category is in the selected set.
+        .filter((cat) =>
+          selectedRegistryCategoryIds.has(
+              AREA_DETAIL_TO_REGISTRY_CATEGORY[cat.id],
+          ),
+        )
+        // Within each category, keep only indicators that are in the selected burden set.
+        .map((cat) => ({
+          ...cat,
+          indicators: cat.indicators.filter(
+              (ind): ind is indicatorInfo =>
+                Boolean(ind.id && selectedBurdenIds.includes(ind.id)),
+          ),
+          socioEcIndicators: cat.socioEcIndicators.filter(
+              (ind): ind is indicatorInfo =>
+                Boolean(ind.id && selectedBurdenIds.includes(ind.id)),
+          ),
+        }))
+        // Drop categories that end up with no indicators to show.
+        .filter(
+            (cat) =>
+              cat.indicators.length > 0 || cat.socioEcIndicators.length > 0,
+        );
+  }
+
   const isTerritory = constants.TILES_ISLAND_AREA_FIPS_CODES.some((code) => {
     return properties[constants.GEOID_PROPERTY].startsWith(code);
   });
@@ -1071,10 +1167,12 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
           return <Indicator key={`ind${index}`} indicator={indicator} />;
         })}
 
-        {/* AND */}
-        <div className={styles.categorySpacer}>
-          {EXPLORE_COPY.SIDE_PANEL_SPACERS.AND}
-        </div>
+        {/* AND - only when both indicator lists have items */}
+        {category.indicators.length > 0 && category.socioEcIndicators.length > 0 && (
+          <div className={styles.categorySpacer}>
+            {EXPLORE_COPY.SIDE_PANEL_SPACERS.AND}
+          </div>
+        )}
 
         {/* socioeconomic indicators */}
         {category.socioEcIndicators.map((indicator: any, index: number) => {
@@ -1091,7 +1189,7 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
         })}
       </>
     ),
-    expanded: false,
+    expanded: useCustomIndicatorView,
   }));
 
   return (
@@ -1108,91 +1206,117 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
       {/* Demographics */}
       <TractDemographics properties={properties} />
 
-      {/* Disadvantaged? */}
+      {/* Disadvantaged? or X-of-Y selected burdens summary (custom view) */}
       <div className={styles.categorization}>
-        {/* Questions asking if disadvantaged? */}
-        <div className={styles.isInFocus}>
-          {EXPLORE_COPY.COMMUNITY.IS_FOCUS}
-        </div>
+        {useCustomIndicatorView ? (
+          <>
+            {selectedBurdenCountY === 0 ? (
+              showTribalLandsMessage ?
+                <p className="selectedBurdensSummary">
+                  {EXPLORE_COPY.tractContainsTribalLandsMessage}
+                </p> :
+                <p className="selectedBurdensSummary">
+                  {EXPLORE_COPY.selectedBurdensSummary(0, 0)}
+                </p>
+            ) : (
+              <>
+                <p className="selectedBurdensSummary">
+                  {EXPLORE_COPY.selectedBurdensSummary(exceedCountX, selectedBurdenCountY)}
+                </p>
+                {showTribalLandsMessage && (
+                  <p className="selectedBurdensSummary">
+                    {EXPLORE_COPY.tractContainsTribalLandsMessage}
+                  </p>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Questions asking if disadvantaged? */}
+            <div className={styles.isInFocus}>
+              {EXPLORE_COPY.COMMUNITY.IS_FOCUS}
+            </div>
 
-        {/* YES, NO or PARTIALLY disadvantaged  */}
-        <div className={styles.communityOfFocus}>
-          <TractPrioritization
-            scoreNCommunities={
-              properties[constants.SCORE_N_COMMUNITIES] === true ?
-                properties[constants.SCORE_N_COMMUNITIES] :
-                false
-            }
-            tribalCountAK={
-              properties[constants.TRIBAL_AREAS_COUNT_AK] >= 1 ?
-                properties[constants.TRIBAL_AREAS_COUNT_AK] :
-                null
-            }
-            tribalCountUS={
-              properties[constants.TRIBAL_AREAS_COUNT_CONUS] >= 1 ?
-                properties[constants.TRIBAL_AREAS_COUNT_CONUS] :
-                null
-            }
-            percentTractTribal={percentTractTribal}
-          />
-        </div>
-
-        <div className={styles.prioCopy}>
-          <PrioritizationCopy
-            totalCategoriesPrioritized={
-              properties[constants.COUNT_OF_CATEGORIES_DISADV]
-            }
-            totalBurdensPrioritized={
-              properties[constants.TOTAL_NUMBER_OF_DISADVANTAGE_INDICATORS]
-            }
-            isAdjacencyThreshMet={
-              properties[constants.ADJACENCY_EXCEEDS_THRESH]
-            }
-            isAdjacencyLowIncome={
-              properties[constants.ADJACENCY_LOW_INCOME_EXCEEDS_THRESH]
-            }
-            isIslandLowIncome={
-              properties[constants.IS_FEDERAL_POVERTY_LEVEL_200] &&
-              constants.TILES_ISLAND_AREA_FIPS_CODES.some((code) => {
-                return properties[constants.GEOID_PROPERTY].startsWith(code);
-              })
-            }
-            tribalCountAK={
-              properties[constants.TRIBAL_AREAS_COUNT_AK] >= 1 ?
-                properties[constants.TRIBAL_AREAS_COUNT_AK] :
-                null
-            }
-            tribalCountUS={
-              properties[constants.TRIBAL_AREAS_COUNT_CONUS] >= 1 ?
-                properties[constants.TRIBAL_AREAS_COUNT_CONUS] :
-                null
-            }
-            percentTractTribal={percentTractTribal}
-            isGrandfathered={properties[constants.IS_GRANDFATHERED]}
-          />
-          <PrioritizationCopy2
-            totalCategoriesPrioritized={
-              properties[constants.COUNT_OF_CATEGORIES_DISADV]
-            }
-            isAdjacencyThreshMet={
-              properties[constants.ADJACENCY_EXCEEDS_THRESH]
-            }
-            isAdjacencyLowIncome={
-              properties[constants.ADJACENCY_LOW_INCOME_EXCEEDS_THRESH]
-            }
-            tribalCountAK={
-              properties[constants.TRIBAL_AREAS_COUNT_AK] >= 1 ?
-                properties[constants.TRIBAL_AREAS_COUNT_AK] :
-                null
-            }
-            tribalCountUS={
-              properties[constants.TRIBAL_AREAS_COUNT_CONUS] >= 1 ?
-                properties[constants.TRIBAL_AREAS_COUNT_CONUS] :
-                null
-            }
-            percentTractTribal={percentTractTribal}
-          />
-        </div>
+            {/* YES, NO or PARTIALLY disadvantaged  */}
+            <div className={styles.communityOfFocus}>
+              <TractPrioritization
+                scoreNCommunities={
+                  properties[constants.SCORE_N_COMMUNITIES] === true ?
+                    properties[constants.SCORE_N_COMMUNITIES] :
+                    false
+                }
+                tribalCountAK={
+                  properties[constants.TRIBAL_AREAS_COUNT_AK] >= 1 ?
+                    properties[constants.TRIBAL_AREAS_COUNT_AK] :
+                    null
+                }
+                tribalCountUS={
+                  properties[constants.TRIBAL_AREAS_COUNT_CONUS] >= 1 ?
+                    properties[constants.TRIBAL_AREAS_COUNT_CONUS] :
+                    null
+                }
+                percentTractTribal={percentTractTribal}
+              />
+            </div>
+            <div className={styles.prioCopy}>
+              <PrioritizationCopy
+                totalCategoriesPrioritized={
+                  properties[constants.COUNT_OF_CATEGORIES_DISADV]
+                }
+                totalBurdensPrioritized={
+                  properties[constants.TOTAL_NUMBER_OF_DISADVANTAGE_INDICATORS]
+                }
+                isAdjacencyThreshMet={
+                  properties[constants.ADJACENCY_EXCEEDS_THRESH]
+                }
+                isAdjacencyLowIncome={
+                  properties[constants.ADJACENCY_LOW_INCOME_EXCEEDS_THRESH]
+                }
+                isIslandLowIncome={
+                  properties[constants.IS_FEDERAL_POVERTY_LEVEL_200] &&
+                  constants.TILES_ISLAND_AREA_FIPS_CODES.some((code) => {
+                    return properties[constants.GEOID_PROPERTY].startsWith(code);
+                  })
+                }
+                tribalCountAK={
+                  properties[constants.TRIBAL_AREAS_COUNT_AK] >= 1 ?
+                    properties[constants.TRIBAL_AREAS_COUNT_AK] :
+                    null
+                }
+                tribalCountUS={
+                  properties[constants.TRIBAL_AREAS_COUNT_CONUS] >= 1 ?
+                    properties[constants.TRIBAL_AREAS_COUNT_CONUS] :
+                    null
+                }
+                percentTractTribal={percentTractTribal}
+                isGrandfathered={properties[constants.IS_GRANDFATHERED]}
+              />
+              <PrioritizationCopy2
+                totalCategoriesPrioritized={
+                  properties[constants.COUNT_OF_CATEGORIES_DISADV]
+                }
+                isAdjacencyThreshMet={
+                  properties[constants.ADJACENCY_EXCEEDS_THRESH]
+                }
+                isAdjacencyLowIncome={
+                  properties[constants.ADJACENCY_LOW_INCOME_EXCEEDS_THRESH]
+                }
+                tribalCountAK={
+                  properties[constants.TRIBAL_AREAS_COUNT_AK] >= 1 ?
+                    properties[constants.TRIBAL_AREAS_COUNT_AK] :
+                    null
+                }
+                tribalCountUS={
+                  properties[constants.TRIBAL_AREAS_COUNT_CONUS] >= 1 ?
+                    properties[constants.TRIBAL_AREAS_COUNT_CONUS] :
+                    null
+                }
+                percentTractTribal={percentTractTribal}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {showIslandCopy && <IslandCopy povertyPercentile={poveryPercentile} />}
@@ -1229,9 +1353,10 @@ const AreaDetail = ({properties}: IAreaDetailProps) => {
         </Button>
       </a> */}
 
-      {/* All category accordions in this component */}
+      {/* Key remounts accordion when switching to custom view so categories open. */}
       {
         <Accordion
+          key={useCustomIndicatorView ? "custom-indicators" : "all-indicators"}
           multiselectable={true}
           items={categoryItems}
           className="-AreaDetail"

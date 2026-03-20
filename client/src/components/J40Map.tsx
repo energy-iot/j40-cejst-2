@@ -1,7 +1,7 @@
 /* eslint-disable valid-jsdoc */
 /* eslint-disable no-unused-vars */
 // External Libs:
-import React, {useRef, useState} from 'react';
+import React, {useRef, useState, useCallback, useMemo} from 'react';
 import {Map, MapGeoJSONFeature, LngLatBoundsLike} from 'maplibre-gl';
 import ReactMapGL, {
   MapEvent,
@@ -31,6 +31,10 @@ import MapSearch from './MapSearch';
 import MapTractLayers from './MapTractLayers/MapTractLayers';
 import MapTribalLayer from './MapTribalLayers/MapTribalLayers';
 import TerritoryFocusControl from './territoryFocusControl';
+// Layer filtering component and type definitions for managing map layer visibility
+import LayerFilter, {LayerFilters} from './LayerFilter';
+import TractCountSummary from './TractCountSummary';
+import {getSelectedTractCount, TOTAL_TRACT_COUNT} from '../data/indicators/tractCounts';
 
 // Styles and constants
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -38,6 +42,7 @@ import * as constants from '../data/constants';
 import * as styles from './J40Map.module.scss';
 import * as EXPLORE_COPY from '../data/copy/explore';
 import CreateReportPanel from './CreateReportPanel';
+import {getMapRegionFromViewport, type MapRegion} from '../utils/mapRegion';
 
 declare global {
   interface Window {
@@ -98,7 +103,32 @@ const J40Map = ({location}: IJ40Interface) => {
   const [inMultiSelectMode, setInMultiSelectMode] = useState<boolean>(false);
   const [showTooManyTractsAlert, setShowTooManyTractsAlert] = useState<boolean>(false);
   const [selectTractId, setSelectTractId] = useState<string | undefined>(undefined);
-  const {width: windowWidth} = useWindowSize();
+  // State for managing indicator selections: tracks which indicators are selected
+  // This will be used for the color-based approach to determine which tracts to color
+  const [layerFilters, setLayerFilters] = useState<LayerFilters>({
+    identifiedAsDisadvantaged: true,
+    indicators: {},
+  });
+  const [isLayerFilterOpen, setIsLayerFilterOpen] = useState(false);
+  const {width: windowWidth, height: windowHeight} = useWindowSize();
+
+  // Use full-screen overlay when viewport is narrow (<=480) or when height is too short
+  // for the dropdown to fit (avoids clipping Reset/Apply on short viewports / iPad).
+  const useLayerFilterOverlay =
+    windowWidth <= constants.USWDS_BREAKPOINTS.MOBILE_LG ||
+    (windowWidth >= constants.USWDS_BREAKPOINTS.DESKTOP &&
+      windowHeight < constants.LAYER_FILTER_OVERLAY_VIEWPORT_HEIGHT.MIN_DESKTOP) ||
+    (windowWidth < constants.USWDS_BREAKPOINTS.DESKTOP &&
+      windowHeight < constants.LAYER_FILTER_OVERLAY_VIEWPORT_HEIGHT.MIN_NARROW);
+
+  const zoomLevel = viewport.zoom ?? constants.GLOBAL_MIN_ZOOM;
+  const mapRegion: MapRegion = useMemo(() => {
+    if (zoomLevel < constants.GLOBAL_MIN_ZOOM_HIGH) return 'nation';
+    return getMapRegionFromViewport(
+        viewport.longitude ?? 0,
+        viewport.latitude ?? 0,
+    );
+  }, [zoomLevel, viewport.longitude, viewport.latitude]);
 
   /**
    * Store the geolocation lock state in local storage. The Geolocation component from MapBox does not
@@ -189,6 +219,11 @@ const J40Map = ({location}: IJ40Interface) => {
    * @param isMultiSelectKeyDown true if the multi select key is down
    */
   const selectFeaturesOnMap = (feature: IMapFeature, isMultiSelectKeyDown: boolean = false) => {
+    // Guard clause: ensure feature exists and has properties before processing
+    // Prevents errors when clicking on map areas without features
+    if (!feature || !feature.properties) {
+      return;
+    }
     const featuresList = updateSelectedFeatures(feature, isMultiSelectKeyDown || inMultiSelectMode);
     if (featuresList.length > 0) {
       const [minLng, minLat, maxLng, maxLat] = getFeaturesBbox(featuresList);
@@ -286,9 +321,15 @@ const J40Map = ({location}: IJ40Interface) => {
 
       // @ts-ignore
       const feature = event.features && event.features[0];
-
+      // Extract Ctrl/Cmd key state for multi-select functionality
       // @ts-ignore
-      selectFeaturesOnMap(feature, event.srcEvent.ctrlKey);
+      const ctrlKey = (event as MapEvent).srcEvent?.ctrlKey || false;
+
+      // Only process feature selection if a valid feature with properties was clicked
+      // @ts-ignore
+      if (feature && feature.properties) {
+        selectFeaturesOnMap(feature, ctrlKey);
+      }
     }
   };
 
@@ -301,7 +342,20 @@ const J40Map = ({location}: IJ40Interface) => {
     removeGeolocateLock();
 
     if (isMobile) setIsMobileMapState(true);
+
+    // Fix ARIA accessibility issue: remove invalid role="list" from attribution control
+    // The attribution control has role="list" with anchor tags as direct children,
+    // which violates ARIA rules. Removing the role fixes the accessibility issue.
+    const attributionElement = document.querySelector('.maplibregl-ctrl-attrib-inner');
+    if (attributionElement) {
+      attributionElement.removeAttribute('role');
+    }
   };
+
+  // Handle overlay state changes to disable/enable double-click zoom
+  const handleOverlayStateChange = useCallback((isOpen: boolean) => {
+    setIsLayerFilterOpen(isOpen);
+  }, []);
 
 
   /**
@@ -357,6 +411,20 @@ const J40Map = ({location}: IJ40Interface) => {
 
   const onTransitionEnd = () => {
     setTransitionInProgress(false);
+
+    // Sync viewport state from the map so mapRegion (and LayerFilter) reflect the final view
+    // after a programmatic flyTo (e.g. territory shortcut), without blocking the animation.
+    const map = mapRef.current?.getMap();
+    if (map) {
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      setViewport((prev) => ({
+        ...prev,
+        longitude: center.lng,
+        latitude: center.lat,
+        zoom,
+      }));
+    }
 
     /*
     If there is a tract ID to be selected then do so once the map has finished moving.
@@ -464,6 +532,7 @@ const J40Map = ({location}: IJ40Interface) => {
           minZoom={constants.GLOBAL_MIN_ZOOM}
           dragRotate={false}
           touchRotate={false}
+          doubleClickZoom={!isLayerFilterOpen}
           // eslint-disable-next-line max-len
           interactiveLayerIds={
             [
@@ -486,40 +555,59 @@ const J40Map = ({location}: IJ40Interface) => {
 
           { /* Tribal layer is baked into Mapbox source,
              * only render here if we're not using that
+             * Show/hide based on "Lands of federally recognized tribes" checkbox
              **/
-            process.env.MAPBOX_STYLES_READ_TOKEN ||
+            (!process.env.MAPBOX_STYLES_READ_TOKEN && layerFilters.indicators.tribalLands) &&
             <MapTribalLayer />
           }
 
+          {/* Map tract layers - all tracts are visible, ready for color-based indicator approach */}
           <MapTractLayers
             selectedFeatures={selectedFeatures}
+            indicatorFilters={layerFilters}
+            mapRegion={mapRegion}
           />
 
-          {/* This is the first overlayed row on the map: Search and Geolocation */}
-          <div className={styles.mapHeaderRow}>
-            <MapSearch goToPlace={goToPlace} />
+          {/* Map overlay strip: search + geolocate, then LayerFilter (column on mobile so LayerFilter is below) */}
+          <div className={styles.mapOverlayStrip}>
+            <div className={styles.mapHeaderRow}>
+              <MapSearch goToPlace={goToPlace} />
 
-            {/* Geolocate Icon */}
-            <div className={styles.geolocateBox}>
-              {
-                windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG - 1 &&
-                <div className={
-                  (geolocationInProgress && !isGeolocateLocked) ?
-                    styles.geolocateMessage :
-                    styles.geolocateMessageHide
-                }>
-                  {intl.formatMessage(EXPLORE_COPY.MAP.GEOLOC_MSG_LOCATING)}
-                </div>
-              }
-              <GeolocateControl
-                positionOptions={{enableHighAccuracy: true}}
-                onGeolocate={onGeolocate}
-                onClick={onClickGeolocate}
-                trackUserLocation={windowWidth < constants.USWDS_BREAKPOINTS.MOBILE_LG}
-                showUserHeading={windowWidth < constants.USWDS_BREAKPOINTS.MOBILE_LG}
-              />
+              {/* Geolocate Icon */}
+              <div className={styles.geolocateBox}>
+                {
+                  windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG - 1 &&
+                  <div className={
+                    (geolocationInProgress && !isGeolocateLocked) ?
+                      styles.geolocateMessage :
+                      styles.geolocateMessageHide
+                  }>
+                    {intl.formatMessage(EXPLORE_COPY.MAP.GEOLOC_MSG_LOCATING)}
+                  </div>
+                }
+                <GeolocateControl
+                  positionOptions={{enableHighAccuracy: true}}
+                  onGeolocate={onGeolocate}
+                  onClick={onClickGeolocate}
+                  trackUserLocation={windowWidth < constants.USWDS_BREAKPOINTS.MOBILE_LG}
+                  showUserHeading={windowWidth < constants.USWDS_BREAKPOINTS.MOBILE_LG}
+                />
+              </div>
             </div>
 
+            <div className={styles.layerFilterWrapper}>
+              <LayerFilter
+                zoom={viewport.zoom ?? constants.GLOBAL_MIN_ZOOM}
+                mapRegion={mapRegion}
+                onFiltersChange={(filters) => {
+                  setLayerFilters(filters);
+                }}
+                onOverlayStateChange={handleOverlayStateChange}
+                isMobile={useLayerFilterOverlay}
+                selectedCount={getSelectedTractCount(layerFilters)}
+                totalCount={TOTAL_TRACT_COUNT}
+              />
+            </div>
           </div>
 
           {/* This is the second row overlayed on the map, it will add the navigation controls
@@ -533,6 +621,12 @@ const J40Map = ({location}: IJ40Interface) => {
           pan/zoom to US territories */}
           {windowWidth > constants.USWDS_BREAKPOINTS.MOBILE_LG &&
             <TerritoryFocusControl onClick={onClick} />}
+
+          {/* Tract count summary: X of Y (selected tracts matching filter / total tracts) */}
+          <TractCountSummary
+            selectedCount={getSelectedTractCount(layerFilters)}
+            totalCount={TOTAL_TRACT_COUNT}
+          />
 
           {/* Enable fullscreen pop-up behind a feature flag */}
           {('fs' in flags && detailViewData && !transitionInProgress) && (
@@ -549,6 +643,7 @@ const J40Map = ({location}: IJ40Interface) => {
               <AreaDetail
                 properties={detailViewData.properties}
                 hash={zoomLatLngHash}
+                layerFilters={layerFilters}
               />
             </Popup>
           )}
@@ -571,6 +666,7 @@ const J40Map = ({location}: IJ40Interface) => {
             className={styles.mapInfoPanel}
             featureProperties={detailViewData?.properties}
             hash={zoomLatLngHash}
+            layerFilters={layerFilters}
           />
         }
       </Grid>

@@ -1,0 +1,115 @@
+/* eslint-disable max-len */
+import {defineMessages} from 'react-intl';
+
+// LayerFilter-specific UI messages
+export const LAYER_FILTER = defineMessages({
+  // UI Elements
+  LAYERS_BUTTON: {
+    id: 'layer.filter.layers.button',
+    defaultMessage: 'Layers',
+    description: 'Button text to open/close the layers filter panel',
+  },
+  LAYERS_BUTTON_ARIA_LABEL: {
+    id: 'layer.filter.layers.button.aria.label',
+    defaultMessage: 'Toggle layers filter panel',
+    description: 'Accessibility label for the layers button describing its action',
+  },
+  PANEL_TITLE: {
+    id: 'layer.filter.panel.title',
+    defaultMessage: 'Categories of burden',
+    description: 'Title of the layer filter dropdown panel',
+  },
+  CLOSE_LAYERS: {
+    id: 'layer.filter.close.layers',
+    defaultMessage: 'Close layers',
+    description: 'Accessibility label for the button that closes the layers panel on mobile',
+  },
+  IDENTIFIED_AS_DISADVANTAGED: {
+    id: 'layer.filter.identified.as.disadvantaged',
+    defaultMessage: 'Identified as disadvantaged',
+    description: 'Checkbox label for filtering by identified as disadvantaged communities',
+  },
+  LOW_INCOME_CHECKBOX: {
+    id: 'layer.filter.low.income.checkbox',
+    defaultMessage: 'Low income',
+    description: 'Checkbox label for filtering by low income indicator',
+  },
+  TRIBAL_LANDS: {
+    id: 'layer.filter.tribal.lands',
+    defaultMessage: 'Lands of federally recognized tribes',
+    description: 'Checkbox label for filtering by tribal lands',
+  },
+  RESET_FILTERS: {
+    id: 'layer.filter.reset.filters',
+    defaultMessage: 'Reset filters',
+    description: 'Button text to reset all filters to default state',
+  },
+  APPLY: {
+    id: 'layer.filter.apply',
+    defaultMessage: 'Apply',
+    description: 'Button text to apply the selected filters',
+  },
+
+
+  // Dynamic content messages
+  CATEGORY_ARIA_LABEL: {
+    id: 'layer.filter.category.aria.label',
+    defaultMessage: '{categoryName}, {selectedCount} of {totalCount} indicators selected',
+    description: 'Accessibility label for category checkbox indicating selection count',
+  },
+  CATEGORY_COUNT_BADGE: {
+    id: 'layer.filter.category.count.badge',
+    defaultMessage: '({selectedCount}/{totalCount})',
+    description: 'Count badge showing number of selected indicators in a category',
+  },
+  INDICATORS_GROUP_LABEL: {
+    id: 'layer.filter.indicators.group.label',
+    defaultMessage: '{categoryName} indicators',
+    description: 'Accessibility label for the group of indicators within a category',
+  },
+
+  // Tract count summary (X of Y) on the map
+  TRACT_COUNT_SUMMARY: {
+    id: 'layer.filter.tract.count.summary',
+    defaultMessage: '{selectedCount} of {totalCount}',
+    description: 'Tract count summary displayed at bottom-right of map: selected tracts of total tracts',
+  },
+  TRACT_COUNT_ARIA_LABEL: {
+    id: 'layer.filter.tract.count.aria.label',
+    defaultMessage: 'Tracts matching current filters: {selectedCount} of {totalCount}',
+    description: 'Accessibility label for the tract count summary',
+  },
+  TRACT_COUNT_SUMMARY_SUFFIX: {
+    id: 'layer.filter.tract.count.summary.suffix',
+    defaultMessage: 'disadvantaged tracts',
+    description: 'Suffix for tract count in mobile overlay header (e.g. "X of Y disadvantaged tracts")',
+  },
+
+  // Zoom-based messaging (zl < 5 vs zl >= 5)
+  ZOOM_IN_TO_ENABLE: {
+    id: 'layer.filter.zoom.in.to.enable',
+    defaultMessage: 'zoom in to enable',
+    description: 'Message when map zoom is below 5 and only default indicator is selected',
+  },
+  SELECT_BURDENS: {
+    id: 'layer.filter.select.burdens',
+    defaultMessage: 'select burdens',
+    description: 'Message when map zoom is 5 or above; prompt to select burden indicators',
+  },
+  SELECTED_BURDENS_COUNT: {
+    id: 'layer.filter.selected.burdens.count',
+    defaultMessage: 'selected burdens ({count})',
+    description: 'Message when map zoom is 5 or above and one or more burden indicators are selected',
+  },
+  ZOOM_IN_TO_VIEW_SELECTION: {
+    id: 'layer.filter.zoom.in.to.view.selection',
+    defaultMessage: 'Zoom in to view selection.',
+    description: 'Message when map zoom is below 5 and user has other indicators selected',
+  },
+  DISPLAYING_ALL_DISADVANTAGED_TRACT: {
+    id: 'layer.filter.displaying.all.disadvantaged.tracts',
+    defaultMessage: 'Displaying all disadvantaged tracts.',
+    description: 'Status when zoom is below 5 and map shows low-zoom (all disadvantaged) view',
+  },
+});
+
